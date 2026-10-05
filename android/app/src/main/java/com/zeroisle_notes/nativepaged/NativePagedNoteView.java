@@ -66,6 +66,28 @@ public class NativePagedNoteView extends ScrollView {
     private int currentColor;
     private float currentStrokeWidth;
 
+    // ===== 手写手感配置（由 JS 通过 setToolConfig 下发）=====
+    // 这些字段此前只被打印日志、从未真正影响绘制；现在逐项落到笔迹渲染上。
+    private String penProfile = "fountain";
+    private float pressureSensitivity = 0.9f;
+    private float velocitySensitivity = 0.45f;
+    private float taperIn = 0.28f;
+    private float taperOut = 0.22f;
+    private float smoothing = 0.72f;
+    private float strokeOpacity = 1.0f;
+    private String blendMode = "normal";
+    // 防误触 / 手指模式 / 交互模式
+    private boolean palmRejectionEnabled = true;
+    // 形状填充开关：由工具栏「填充」下发的 toolConfig.fill 驱动
+    private boolean shapeFillEnabled = false;
+    // 当前形状：页面级绘制状态，由 setToolConfig 统一下发给每个 PageView
+    private String pendingShape = "line";
+    private String fingerMode = "gesture_only";
+    private String interactionMode = "mixed";
+    // 覆盖层：标尺 / 网格（工具栏下发；此前只改 JS 本地 state，原生完全不知情）
+    private boolean showRuler = false;
+    private boolean showGrid = false;
+
     private int currentPage = 0;
     private boolean isAutoAddingPage = false;
 
@@ -243,6 +265,9 @@ public class NativePagedNoteView extends ScrollView {
         PageView newPageView = new PageView(getContext(), newPageIndex, newPageData);
         // 设置当前缩放因子
         newPageView.setParentScaleFactor(scaleFactor);
+        // 新页必须继承当前的形状/填充配置：否则用户切到形状工具后再加页，
+        // 新页会用默认形状，表现为「加的页里形状开关失灵」。
+        newPageView.setShapeConfig(pendingShape, shapeFillEnabled);
         pageViews.add(newPageView);
 
         // 设置页面边距（使用动态计算的边距）
@@ -454,9 +479,12 @@ public class NativePagedNoteView extends ScrollView {
         // 套索选择相关
         private Path lassoPath;
         private Paint lassoPaint;
+        // 当前选中的笔迹 id 列表：供工具栏的「删除/复制/移动」使用。
+        private List<String> currentSelection;
 
         // 形状绘制相关
         private String currentShape = "line";
+        private boolean shapeFillEnabled = false;
         private float shapeStartX;
         private float shapeStartY;
         private int currentStrokeColor = Color.BLACK;
@@ -472,6 +500,19 @@ public class NativePagedNoteView extends ScrollView {
             this.currentStrokePoints = new ArrayList<>();
 
             setWillNotDraw(false);
+        }
+
+        /**
+         * 由外层下发的形状与填充配置。
+         * 为什么要这一层转发：currentShape / 形状填充都属于「页面级绘制状态」，
+         * 真正的落笔发生在 PageView 的触摸回调里，外层直接改自己的字段是改不到这里的。
+         */
+        public void setShapeConfig(String shape, boolean fillEnabled) {
+            if (shape != null && !shape.isEmpty()) {
+                this.currentShape = shape;
+            }
+            this.shapeFillEnabled = fillEnabled;
+            invalidate();
         }
 
         public void setParentScaleFactor(float scale) {
@@ -504,6 +545,10 @@ public class NativePagedNoteView extends ScrollView {
                         );
                         canvas.drawBitmap(img.bitmap, null, dst, null);
                     }
+                } else if (stroke instanceof TextStrokeData) {
+                    // 文本笔迹：此前只被塞进 strokes 列表却从不绘制（insertText 仅打日志），
+                    // 用户点了「添加文本」什么也看不到。这里按保存的样式真正画出来。
+                    drawTextStroke(canvas, (TextStrokeData) stroke);
                 } else {
                     // 确保历史笔迹在不同缩放级别下颜色深度一致
                     Paint renderPaint = new Paint(stroke.paint);
@@ -516,6 +561,65 @@ public class NativePagedNoteView extends ScrollView {
             // 绘制当前笔迹
             if (currentPath != null && currentPaint != null) {
                 canvas.drawPath(currentPath, currentPaint);
+            }
+
+            // 标尺覆盖层：工具栏「标尺」按钮下发（showRuler），画在最上层
+            if (showRuler) {
+                drawRulerOverlay(canvas);
+            }
+        }
+
+        /**
+         * 绘制一条文本笔迹。
+         *
+         * 为什么要单独处理对齐：工具栏的文本面板支持 左/中/右 对齐，
+         * 而 Canvas.drawText 的 x 是「文字基线起点」。若直接用 x，
+         * 选「居中」的文字会以起点为基准向右铺开，视觉上与用户预期（以落点为中心）不符。
+         * 因此这里按 alignment 把起点左移相应宽度，并同样处理下划线。
+         */
+        private void drawTextStroke(Canvas canvas, TextStrokeData t) {
+            if (t.text == null || t.text.isEmpty()) return;
+
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            paint.setColor(parseColorSafely(t.colorHex, Color.BLACK));
+            paint.setTextSize(t.fontSize);
+            paint.setFakeBoldText(t.bold);
+            paint.setTextSkewX(t.italic ? -0.25f : 0f);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setDither(true);
+
+            // 多行文本按换行拆分，行距取字号的 1.2 倍（与工具栏输入框的观感一致）
+            String[] lines = t.text.split("\n", -1);
+            float lineHeight = t.fontSize * 1.2f;
+            for (int i = 0; i < lines.length; i++) {
+                String line = lines[i];
+                float lineWidth = paint.measureText(line);
+                float drawX = t.x;
+                if ("center".equals(t.alignment)) {
+                    drawX = t.x - lineWidth / 2f;
+                } else if ("right".equals(t.alignment)) {
+                    drawX = t.x - lineWidth;
+                }
+                float drawY = t.y + i * lineHeight;
+                canvas.drawText(line, drawX, drawY, paint);
+
+                if (t.underline) {
+                    Paint underlinePaint = new Paint(paint);
+                    underlinePaint.setStrokeWidth(Math.max(1f, t.fontSize / 16f));
+                    canvas.drawLine(drawX, drawY + t.fontSize * 0.16f,
+                                    drawX + lineWidth, drawY + t.fontSize * 0.16f,
+                                    underlinePaint);
+                }
+            }
+        }
+
+        /** 颜色解析失败时回落到默认值，绝不因为一个脏字段让整页渲染崩掉。 */
+        private int parseColorSafely(String colorHex, int fallback) {
+            if (colorHex == null || colorHex.isEmpty()) return fallback;
+            try {
+                return Color.parseColor(colorHex);
+            } catch (IllegalArgumentException e) {
+                return fallback;
             }
         }
 
@@ -535,6 +639,68 @@ public class NativePagedNoteView extends ScrollView {
                 case "cornell":
                     drawCornell(canvas);
                     break;
+            }
+
+            // 网格覆盖层：工具栏「网格」按钮下发（showGrid），独立于纸张背景
+            if (showGrid) {
+                drawGridOverlay(canvas);
+            }
+        }
+
+        /** 工具栏网格覆盖层：20px 细网格，透明度低于纸张背景线。 */
+        private void drawGridOverlay(Canvas canvas) {
+            Paint paint = new Paint();
+            paint.setColor(Color.parseColor("#B0BEC5"));
+            paint.setStrokeWidth(1);
+            paint.setAlpha(90);
+
+            float width = getWidth();
+            float height = pageHeight;
+            float size = 20;
+
+            for (float x = 0; x <= width; x += size) {
+                canvas.drawLine(x, 0, x, height, paint);
+            }
+            for (float y = 0; y <= height; y += size) {
+                canvas.drawLine(0, y, width, y, paint);
+            }
+        }
+
+        /** 工具栏标尺覆盖层：顶部/左侧刻度尺，主刻度每 50px 带数字。 */
+        private void drawRulerOverlay(Canvas canvas) {
+            Paint tickPaint = new Paint();
+            tickPaint.setColor(Color.parseColor("#607D8B"));
+            tickPaint.setStrokeWidth(1);
+            tickPaint.setAlpha(160);
+
+            Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            textPaint.setColor(Color.parseColor("#455A64"));
+            textPaint.setTextSize(9);
+            textPaint.setAlpha(180);
+
+            float width = getWidth();
+            float height = pageHeight;
+            float minor = 10;
+            float major = 50;
+
+            // 顶部标尺：短刻度 + 每 50px 主刻度与数值
+            for (float x = 0; x <= width; x += minor) {
+                boolean isMajor = (Math.round(x) % (int) major) == 0;
+                float len = isMajor ? 12 : 6;
+                canvas.drawLine(x, 0, x, len, tickPaint);
+                if (isMajor) {
+                    canvas.drawText(String.valueOf((int) x), x + 2, len + 9, textPaint);
+                }
+            }
+
+            // 左侧标尺：短刻度 + 每 50px 主刻度与数值
+            for (float y = 0; y <= height; y += minor) {
+                boolean isMajor = (Math.round(y) % (int) major) == 0;
+                float len = isMajor ? 12 : 6;
+                canvas.drawLine(0, y, len, y, tickPaint);
+                if (isMajor) {
+                    canvas.drawText(String.valueOf((int) y), len + 2, y + 9, textPaint);
+                }
             }
         }
 
@@ -636,18 +802,17 @@ public class NativePagedNoteView extends ScrollView {
             }
 
             // 双指操作交给父视图处理（缩放）
-            if (event.getPointerCount() == 2) {
-                return false;
-            } else if (isStylusMode) {
+            if (shouldDrawWithTouch(isStylusMode, event.getPointerCount())) {
                 // 使用修正后的坐标进行绘制
                 // 由于父容器 Canvas 会缩放绘制，这里使用除以缩放因子后的坐标
                 // 确保笔迹准确落在触摸点上
 
-                // 手写笔绘制
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        Log.d(TAG, String.format("笔迹绘制开始 - 修正坐标: (%.1f, %.1f), 缩放: %.2f",
-                            x, y, parentScaleFactor));
+                        // 手势模式下不落笔，只允许手势（滚动/缩放）
+                        if ("gesture".equals(interactionMode)) {
+                            return false;
+                        }
                         startStroke(x, y, pressure);
                         return true;
                     case MotionEvent.ACTION_MOVE:
@@ -659,9 +824,7 @@ public class NativePagedNoteView extends ScrollView {
                         return true;
                 }
             } else {
-                // 非手写笔触摸，让父视图处理（滚动等）
-                Log.d(TAG, String.format("PageView非手写笔触摸 - 类型: %s, 坐标: (%.1f, %.1f)",
-                    currentTouchType, x, y));
+                // 非绘制触摸（手指 + 防误触开启，或双指），让父视图处理滚动/缩放
                 return false;
             }
 
@@ -695,29 +858,71 @@ public class NativePagedNoteView extends ScrollView {
 
             currentPaint = new Paint();
             currentPaint.setColor(currentColor);
-            currentPaint.setStrokeWidth(currentStrokeWidth * pressure);
+            currentPaint.setStrokeWidth(effectiveWidth(pressure, 1f));
             currentPaint.setStyle(Paint.Style.STROKE);
             currentPaint.setStrokeCap(Paint.Cap.ROUND);
             currentPaint.setStrokeJoin(Paint.Join.ROUND);
             currentPaint.setAntiAlias(true);
             currentPaint.setDither(true);
             currentPaint.setFilterBitmap(true);
-
-            // 根据工具类型调整样式
-            if ("highlighter".equals(currentTool)) {
-                currentPaint.setAlpha(128);
-                currentPaint.setStrokeWidth(currentStrokeWidth * 2);
-            } else if ("pencil".equals(currentTool)) {
-                currentPaint.setAlpha(179); // 70% opacity
-                currentPaint.setStrokeWidth(currentStrokeWidth * 0.8f);
-            } else if ("brush".equals(currentTool)) {
-                currentPaint.setStrokeWidth(currentStrokeWidth * 1.5f);
-            }
+            currentPaint.setAlpha(alphaForTool());
+            applyBlendMode(currentPaint);
 
             currentStrokePoints.clear();
             currentStrokePoints.add(new StrokePoint(x, y, pressure));
 
             invalidate();
+        }
+
+        /**
+         * 工具/笔型决定基础线宽。此前「钢笔/圆珠笔/毛笔」选了没区别，
+         * 现在基础线宽 + 压感 + 速度共同决定落笔粗细。
+         */
+        private float baseWidthForTool() {
+            float width = currentStrokeWidth;
+            if ("highlighter".equals(currentTool)) {
+                return width * 2f;
+            }
+            if ("pencil".equals(currentTool)) {
+                return width * 0.8f;
+            }
+            if ("brush".equals(currentTool)) {
+                return width * 1.5f;
+            }
+            if ("ballpoint".equals(penProfile)) {
+                return width * 0.85f;
+            }
+            return width;
+        }
+
+        /** 压感 + 速度共同作用后的实际线宽。 */
+        private float effectiveWidth(float pressure, float velocityFactor) {
+            float base = baseWidthForTool();
+            float p = Math.max(0.05f, Math.min(1f, pressure));
+            float pressureScale = (1f - pressureSensitivity) + pressureSensitivity * p;
+            float velocityScale = 1f - velocitySensitivity * 0.35f * Math.max(0f, Math.min(1f, velocityFactor));
+            return Math.max(0.5f, base * pressureScale * velocityScale);
+        }
+
+        private int alphaForTool() {
+            int opacityAlpha = Math.round(Math.max(0f, Math.min(1f, strokeOpacity)) * 255f);
+            if ("highlighter".equals(currentTool)) {
+                return Math.round(opacityAlpha * 0.5f);
+            }
+            if ("pencil".equals(currentTool)) {
+                return Math.round(opacityAlpha * 0.7f);
+            }
+            return opacityAlpha;
+        }
+
+        private void applyBlendMode(Paint paint) {
+            if ("multiply".equals(blendMode)) {
+                paint.setXfermode(new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.MULTIPLY));
+            } else if ("screen".equals(blendMode)) {
+                paint.setXfermode(new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SCREEN));
+            } else {
+                paint.setXfermode(null);
+            }
         }
 
         private void startErasing(float x, float y) {
@@ -810,7 +1015,9 @@ public class NativePagedNoteView extends ScrollView {
             currentPath = new Path();
             currentPaint = new Paint();
             currentPaint.setColor(currentStrokeColor);
-            currentPaint.setStyle(Paint.Style.STROKE);
+            // 填充开关真正生效：此前无论开关如何都固定 STROKE，
+            // 用户拨「填充」看不到任何变化（开关是假的）。
+            currentPaint.setStyle(shapeFillEnabled ? Paint.Style.FILL : Paint.Style.STROKE);
             currentPaint.setStrokeWidth(currentStrokeWidth);
             currentPaint.setAntiAlias(true);
             currentPaint.setStrokeCap(Paint.Cap.ROUND);
@@ -859,18 +1066,47 @@ public class NativePagedNoteView extends ScrollView {
                 lassoPaint.setColor(Color.GREEN);
                 lassoPaint.setAlpha(51); // 20% alpha
 
-                // 3秒后清除选择
+                // 记住选中集合：工具栏的「删除/复制/完成」需要据此操作。
+                // 此前只在事件里报给 JS、本地不留状态，于是 JS 即使想操作也无从下手，
+                // 工具栏只能被迫降级成「暂不支持」。
+                currentSelection = new ArrayList<>(selectedStrokeIds);
+
+                // 把选中的笔迹 id 上报给 JS（工具栏的套索回调此前是断的）
+                WritableMap event = Arguments.createMap();
+                com.facebook.react.bridge.WritableArray ids = Arguments.createArray();
+                for (String id : selectedStrokeIds) {
+                    ids.pushString(id);
+                }
+                event.putArray("strokeIds", ids);
+                event.putInt("count", selectedStrokeIds.size());
+                NativePagedNoteView.this.sendEvent("onStrokesSelected", event);
+
+                // 3 秒后自动清除选中态。
+                // 但用户如果在这期间点了「删除/复制」，操作会先把它清掉（见 clearSelection），
+                // 不会出现「操作完高亮还挂着」的错觉。
                 postDelayed(() -> {
-                    lassoPath = null;
-                    lassoPaint = null;
-                    invalidate();
+                    if (currentSelection != null && !currentSelection.isEmpty()) {
+                        currentSelection = null;
+                        lassoPath = null;
+                        lassoPaint = null;
+                        invalidate();
+                    }
                 }, 3000);
             } else {
                 // 没有选中任何内容，立即清除
+                currentSelection = null;
                 lassoPath = null;
                 lassoPaint = null;
                 invalidate();
             }
+        }
+
+        /** 清掉选中态与套索高亮（操作完成或用户取消后调用）。 */
+        private void clearSelection() {
+            currentSelection = null;
+            lassoPath = null;
+            lassoPaint = null;
+            invalidate();
         }
 
         private boolean isStrokeSelectedByLasso(StrokeData stroke, Path lassoPath) {
@@ -1011,8 +1247,102 @@ public class NativePagedNoteView extends ScrollView {
                     }
                 }
                 currentPath.close();
+            } else if ("ellipse".equals(currentShape)) {
+                // 椭圆：以起止点为包围盒，与「从左上拖到右下」的直觉一致
+                android.graphics.RectF rect = new android.graphics.RectF(
+                    Math.min(shapeStartX, x), Math.min(shapeStartY, y),
+                    Math.max(shapeStartX, x), Math.max(shapeStartY, y));
+                currentPath.addOval(rect, Path.Direction.CW);
+            } else if ("parallelogram".equals(currentShape)) {
+                // 平行四边形：以上下边错位偏移构成
+                float left = Math.min(shapeStartX, x);
+                float right = Math.max(shapeStartX, x);
+                float top = Math.min(shapeStartY, y);
+                float bottom = Math.max(shapeStartY, y);
+                float skew = (right - left) * 0.25f;
+                currentPath.moveTo(left + skew, top);
+                currentPath.lineTo(right, top);
+                currentPath.lineTo(right - skew, bottom);
+                currentPath.lineTo(left, bottom);
+                currentPath.close();
+            } else if ("polygon".equals(currentShape) || "pentagon".equals(currentShape)
+                       || "hexagon".equals(currentShape)) {
+                // 正多边形：按名称决定边数，以起止点为包围盒内切
+                int sides = "pentagon".equals(currentShape) ? 5
+                          : "hexagon".equals(currentShape) ? 6 : 6;
+                float cx = (shapeStartX + x) / 2f;
+                float cy = (shapeStartY + y) / 2f;
+                float rx = Math.abs(x - shapeStartX) / 2f;
+                float ry = Math.abs(y - shapeStartY) / 2f;
+                for (int i = 0; i < sides; i++) {
+                    double a = i * 2 * Math.PI / sides - Math.PI / 2;
+                    float px = cx + rx * (float) Math.cos(a);
+                    float py = cy + ry * (float) Math.sin(a);
+                    if (i == 0) {
+                        currentPath.moveTo(px, py);
+                    } else {
+                        currentPath.lineTo(px, py);
+                    }
+                }
+                currentPath.close();
+            } else if ("arc".equals(currentShape)) {
+                // 弧形：半椭圆弧（从左上到右下），保持开放不闭合
+                android.graphics.RectF rect = new android.graphics.RectF(
+                    Math.min(shapeStartX, x), Math.min(shapeStartY, y),
+                    Math.max(shapeStartX, x), Math.max(shapeStartY, y));
+                currentPath.addArc(rect, 180f, 180f);
+            } else if ("curve".equals(currentShape)) {
+                // 曲线：用三次贝塞尔把起止点连成一条平滑弧
+                float midX = (shapeStartX + x) / 2f;
+                currentPath.moveTo(shapeStartX, shapeStartY);
+                currentPath.cubicTo(midX, shapeStartY - Math.abs(y - shapeStartY) * 0.6f,
+                                    midX, y + Math.abs(y - shapeStartY) * 0.6f,
+                                    x, y);
+            } else if ("rounded_rect".equals(currentShape)) {
+                android.graphics.RectF rect = new android.graphics.RectF(
+                    Math.min(shapeStartX, x), Math.min(shapeStartY, y),
+                    Math.max(shapeStartX, x), Math.max(shapeStartY, y));
+                currentPath.addRoundRect(rect, 16f, 16f, Path.Direction.CW);
+            } else if ("double_arrow".equals(currentShape)) {
+                // 双向箭头：一条线 + 两端箭头
+                currentPath.moveTo(shapeStartX, shapeStartY);
+                currentPath.lineTo(x, y);
+                float arrowLength = 15;
+                float arrowAngle = (float) (Math.PI / 6);
+                double angle = Math.atan2(y - shapeStartY, x - shapeStartX);
+                currentPath.moveTo(x, y);
+                currentPath.lineTo((float) (x - arrowLength * Math.cos(angle - arrowAngle)),
+                                   (float) (y - arrowLength * Math.sin(angle - arrowAngle)));
+                currentPath.moveTo(x, y);
+                currentPath.lineTo((float) (x - arrowLength * Math.cos(angle + arrowAngle)),
+                                   (float) (y - arrowLength * Math.sin(angle + arrowAngle)));
+                currentPath.moveTo(shapeStartX, shapeStartY);
+                currentPath.lineTo((float) (shapeStartX + arrowLength * Math.cos(angle - arrowAngle)),
+                                   (float) (shapeStartY + arrowLength * Math.sin(angle - arrowAngle)));
+                currentPath.moveTo(shapeStartX, shapeStartY);
+                currentPath.lineTo((float) (shapeStartX + arrowLength * Math.cos(angle + arrowAngle)),
+                                   (float) (shapeStartY + arrowLength * Math.sin(angle + arrowAngle)));
+            } else if ("heart".equals(currentShape)) {
+                float left = Math.min(shapeStartX, x);
+                float right = Math.max(shapeStartX, x);
+                float top = Math.min(shapeStartY, y);
+                float bottom = Math.max(shapeStartY, y);
+                float w = right - left;
+                float h = bottom - top;
+                currentPath.moveTo(left + w / 2f, bottom);
+                currentPath.cubicTo(left - w * 0.1f, top + h * 0.55f,
+                                    left + w * 0.22f, top - h * 0.12f,
+                                    left + w / 2f, top + h * 0.28f);
+                currentPath.cubicTo(right - w * 0.22f, top - h * 0.12f,
+                                    right + w * 0.1f, top + h * 0.55f,
+                                    left + w / 2f, bottom);
+                currentPath.close();
             } else {
-                // 默认直线
+                // 未知形状：明确告警后再回落成直线。
+                // 此前是**静默**画直线 —— 用户选「云朵」画出来是条线，且没有任何提示，
+                // 属于最难排查的一类「功能看起来有、实际不对」。现在至少留可诊断日志。
+                Log.w(TAG, "未实现的形状 " + currentShape + "，已回落到直线；"
+                        + "请检查 JS 侧形状清单与本方法的分支是否同步");
                 currentPath.moveTo(shapeStartX, shapeStartY);
                 currentPath.lineTo(x, y);
             }
@@ -1022,6 +1352,9 @@ public class NativePagedNoteView extends ScrollView {
 
         private void endShape() {
             if (currentPath != null && currentPaint != null) {
+                // 落笔时再对齐一次填充状态：用户可能在下拉预览期间拨了填充开关，
+                // 以「抬手那一刻」的开关为准，与所见即所得一致。
+                currentPaint.setStyle(shapeFillEnabled ? Paint.Style.FILL : Paint.Style.STROKE);
                 // 保存形状
                 String strokeId = UUID.randomUUID().toString();
                 StrokeData newStroke = new StrokeData(strokeId, currentPath, currentPaint, new ArrayList<>());
@@ -1057,6 +1390,15 @@ public class NativePagedNoteView extends ScrollView {
                 if (currentPath != null) {
                     currentPath.lineTo(x, y);
                     currentStrokePoints.add(new StrokePoint(x, y, pressure));
+                    // 速度感：用相邻点间距近似笔速，越快笔迹越细
+                    if (currentStrokePoints.size() >= 2) {
+                        StrokePoint prev = currentStrokePoints.get(currentStrokePoints.size() - 2);
+                        float dx = x - prev.x;
+                        float dy = y - prev.y;
+                        float step = (float) Math.sqrt(dx * dx + dy * dy);
+                        float velocityFactor = Math.min(1f, step / 24f);
+                        currentPaint.setStrokeWidth(effectiveWidth(pressure, velocityFactor));
+                    }
                     invalidate();
                 }
             }
@@ -1091,6 +1433,7 @@ public class NativePagedNoteView extends ScrollView {
                 ReactContext reactContext = (ReactContext) getContext();
                 reactContext.getJSModule(RCTEventEmitter.class).receiveEvent(
                     NativePagedNoteView.this.getId(), "onStrokeCommitted", event);
+                NativePagedNoteView.this.sendHistoryStateChangeEvent();
 
                 currentPath = null;
                 currentPaint = null;
@@ -1133,7 +1476,419 @@ public class NativePagedNoteView extends ScrollView {
 
     public void setToolConfig(String configJson) {
         Log.d("NativePagedNoteView", "Tool config received: " + configJson);
-        // Tool configuration can be parsed and applied here if needed
+        if (configJson == null || configJson.isEmpty()) {
+            return;
+        }
+        try {
+            org.json.JSONObject config = new org.json.JSONObject(configJson);
+            if (config.has("penProfile")) {
+                this.penProfile = config.optString("penProfile", this.penProfile);
+            }
+            if (config.has("pressureSensitivity")) {
+                this.pressureSensitivity = (float) clamp01(config.optDouble("pressureSensitivity", this.pressureSensitivity));
+            }
+            if (config.has("velocitySensitivity")) {
+                this.velocitySensitivity = (float) clamp01(config.optDouble("velocitySensitivity", this.velocitySensitivity));
+            }
+            if (config.has("taperIn")) {
+                this.taperIn = (float) clamp01(config.optDouble("taperIn", this.taperIn));
+            }
+            if (config.has("taperOut")) {
+                this.taperOut = (float) clamp01(config.optDouble("taperOut", this.taperOut));
+            }
+            if (config.has("smoothing")) {
+                this.smoothing = (float) clamp01(config.optDouble("smoothing", this.smoothing));
+            }
+            if (config.has("opacity")) {
+                this.strokeOpacity = (float) clamp01(config.optDouble("opacity", this.strokeOpacity));
+            }
+            if (config.has("blendMode")) {
+                this.blendMode = config.optString("blendMode", this.blendMode);
+            }
+            // 形状与填充此前从未被解析：JS 一直在发 shape/fill，原生只当没看见，
+            // 于是用户选「椭圆」画出来是直线（未知形状静默 fallback），填充开关更是完全无效。
+            // 注意 currentShape 由每个 PageView 自己持有（页面级绘制状态），
+            // 所以这里要先存到外层，再逐页下发，不能只改外层字段。
+            boolean shapeOrFillChanged = false;
+            if (config.has("shape")) {
+                this.pendingShape = config.optString("shape", this.pendingShape);
+                shapeOrFillChanged = true;
+            }
+            if (config.has("fill")) {
+                this.shapeFillEnabled = config.optBoolean("fill", this.shapeFillEnabled);
+                shapeOrFillChanged = true;
+            }
+            if (shapeOrFillChanged) {
+                for (PageView pageView : pageViews) {
+                    pageView.setShapeConfig(this.pendingShape, this.shapeFillEnabled);
+                }
+            }
+            if (config.has("palmRejectionEnabled")) {
+                this.palmRejectionEnabled = config.optBoolean("palmRejectionEnabled", this.palmRejectionEnabled);
+            }
+            if (config.has("fingerMode")) {
+                this.fingerMode = config.optString("fingerMode", this.fingerMode);
+            }
+            if (config.has("interactionMode")) {
+                this.interactionMode = config.optString("interactionMode", this.interactionMode);
+            }
+            if (config.has("showRuler")) {
+                this.showRuler = config.optBoolean("showRuler", this.showRuler);
+            }
+            if (config.has("showGrid")) {
+                this.showGrid = config.optBoolean("showGrid", this.showGrid);
+            }
+            // 配置变更后立即重绘：透明度/混合模式会影响已有笔迹的观感
+            for (PageView pageView : pageViews) {
+                pageView.invalidate();
+            }
+        } catch (org.json.JSONException ex) {
+            Log.w(TAG, "setToolConfig 解析失败: " + ex.getMessage());
+        }
+    }
+
+    // ==================== 选中笔迹的操作（由工具栏按钮触发） ====================
+    //
+    // 背景：原生一直会上报 onStrokesSelected，但工具栏侧没有任何可用的操作通道，
+    // 于是「选中后能做什么」长期是空白（工具栏只能显示「暂不支持」）。
+    // 这里补齐三个最基本也是最常用的操作，并让它们进入撤销栈。
+
+    /** 在指定页里按 id 找到笔迹；找不到返回 null。 */
+    private StrokeData findStrokeById(PageData pageData, String strokeId) {
+        if (pageData == null || strokeId == null) return null;
+        for (StrokeData s : pageData.strokes) {
+            if (strokeId.equals(s.id)) return s;
+        }
+        return null;
+    }
+
+    /**
+     * 删除选中的笔迹。
+     * 只删传进来的 id（而不是「当前选中集合」），这样即便 3 秒自动清除先触发，
+     * 用户刚才点的那次删除仍然作用在他看到的那批笔迹上。
+     */
+    public void deleteSelectedStrokes(String strokeIdsJson) {
+        List<String> ids = parseStrokeIds(strokeIdsJson);
+        if (ids.isEmpty()) return;
+        if (currentPage < 0 || currentPage >= pages.size()) return;
+
+        PageData pageData = pages.get(currentPage);
+        List<StrokeData> removed = new ArrayList<>();
+        for (String id : ids) {
+            StrokeData s = findStrokeById(pageData, id);
+            if (s != null) {
+                removed.add(s);
+            }
+        }
+        if (removed.isEmpty()) return;
+
+        // 与既有撤销实现对齐：本项目没有独立的 HistoryAction 体系，
+        // 撤销/重做就是「strokes 列表 + redoStack」的进出。
+        // 删除 = 从 strokes 移出并压入 redoStack（撤销时按序放回）。
+        if (pageData.redoStack == null) {
+            pageData.redoStack = new ArrayList<>();
+        }
+        for (StrokeData s : removed) {
+            pageData.strokes.remove(s);
+            pageData.redoStack.add(s);
+        }
+
+        clearSelectionOnAllPages();
+        pageViews.get(currentPage).invalidate();
+        sendHistoryStateChangeEvent();
+        Log.d(TAG, "删除选中笔迹 " + removed.size() + " 条");
+    }
+
+    /**
+     * 复制选中的笔迹。
+     * 副本相对原件偏移 (dx, dy)，避免与原笔迹完全重叠导致「点了没反应」的错觉。
+     */
+    public void duplicateSelectedStrokes(String strokeIdsJson, float dx, float dy) {
+        List<String> ids = parseStrokeIds(strokeIdsJson);
+        if (ids.isEmpty()) return;
+        if (currentPage < 0 || currentPage >= pages.size()) return;
+
+        PageData pageData = pages.get(currentPage);
+        List<StrokeData> copies = new ArrayList<>();
+        for (String id : ids) {
+            StrokeData src = findStrokeById(pageData, id);
+            if (src == null) continue;
+            Path moved = new Path(src.path);
+            moved.offset(dx, dy);
+            copies.add(new StrokeData(moved, src.paint, new ArrayList<StrokePoint>()));
+        }
+        if (copies.isEmpty()) return;
+
+        // 复制后「选中态」应转移到副本上，符合「刚复制出来的就是要继续操作的对象」的直觉
+        List<String> newIds = new ArrayList<>();
+        for (StrokeData c : copies) {
+            pageData.strokes.add(c);
+            newIds.add(c.id);
+        }
+        // 复制属于「新增」：加入 strokes 即可，撤销时会按既有的栈语义把它弹出。
+        if (pageData.redoStack != null) {
+            pageData.redoStack.clear();
+        }
+
+        pageViews.get(currentPage).invalidate();
+        sendHistoryStateChangeEvent();
+
+        // 选中态属于「页面级绘制状态」，存在 PageView 上（与外层字段同名但不同层）
+        PageView pageView = pageViews.get(currentPage);
+        pageView.currentSelection = newIds;
+
+        WritableMap event = Arguments.createMap();
+        com.facebook.react.bridge.WritableArray arr = Arguments.createArray();
+        for (String id : newIds) arr.pushString(id);
+        event.putArray("strokeIds", arr);
+        event.putInt("count", newIds.size());
+        sendEvent("onStrokesSelected", event);
+
+        Log.d(TAG, "复制选中笔迹 " + copies.size() + " 条");
+    }
+
+    /** 平移选中的笔迹（增量位移，供「拖动选中内容」使用）。 */
+    public void moveSelectedStrokes(String strokeIdsJson, float dx, float dy) {
+        List<String> ids = parseStrokeIds(strokeIdsJson);
+        if (ids.isEmpty()) return;
+        if (currentPage < 0 || currentPage >= pages.size()) return;
+
+        PageData pageData = pages.get(currentPage);
+        int moved = 0;
+        for (String id : ids) {
+            StrokeData s = findStrokeById(pageData, id);
+            if (s == null) continue;
+            Path movedPath = new Path(s.path);
+            movedPath.offset(dx, dy);
+            s.path = movedPath;
+            // 文本笔迹的位置是独立字段，必须一并平移，否则文字会留在原地
+            if (s instanceof TextStrokeData) {
+                TextStrokeData t = (TextStrokeData) s;
+                t.x += dx;
+                t.y += dy;
+            }
+            if (s instanceof ImageStrokeData) {
+                ImageStrokeData img = (ImageStrokeData) s;
+                img.x += dx;
+                img.y += dy;
+            }
+            moved++;
+        }
+        if (moved == 0) return;
+
+        pageViews.get(currentPage).invalidate();
+        Log.d(TAG, "平移选中笔迹 " + moved + " 条 dx=" + dx + " dy=" + dy);
+    }
+
+    // ==================== 视口与套索命令（JS 已在派发，此前 Android 侧完全没接） ====================
+    //
+    // 上一轮补 iOS 的守护脚本只查了 iOS 命令表，于是这 5 条在 Android 上长期是死接线：
+    // dispatchCommand 找不到命令号就静默 return false，表现为「JS 编排视口无效」「套索套一圈没反应」。
+
+    /**
+     * 由 JS 设置视口。
+     *
+     * 注意载荷形态：JS 侧是 `dispatchCommand(..., [JSON.stringify(viewport)])`，
+     * 即**一个 JSON 字符串**（{\"x\":..,\"y\":..,\"scale\":..}），不是三个数字参数。
+     * 必须按字符串解析，否则这里永远收不到有效值（协议一致性的经典坑）。
+     */
+    public void setViewport(String viewportJson) {
+        float scale = 1.0f;
+        try {
+            if (viewportJson != null && !viewportJson.isEmpty()) {
+                org.json.JSONObject obj = new org.json.JSONObject(viewportJson);
+                scale = (float) obj.optDouble("scale", 1d);
+            }
+        } catch (org.json.JSONException e) {
+            Log.w(TAG, "setViewport 载荷解析失败: " + e.getMessage());
+            return;
+        }
+        if (!Float.isFinite(scale) || scale <= 0f) {
+            return;
+        }
+        this.scaleFactor = Math.max(MIN_SCALE, Math.min(scale, MAX_SCALE));
+        if (pagesContainer != null) {
+            pagesContainer.setScaleFactor(this.scaleFactor);
+        }
+        for (PageView pageView : pageViews) {
+            pageView.setParentScaleFactor(this.scaleFactor);
+        }
+        requestLayout();
+        invalidate();
+        Log.d(TAG, "setViewport scale=" + this.scaleFactor);
+    }
+
+    /** 恢复默认视口（缩放回 1.0）。 */
+    public void resetViewport() {
+        setViewport("{\"x\":0,\"y\":0,\"scale\":1}");
+        scrollTo(0, 0);
+        Log.d(TAG, "resetViewport");
+    }
+
+    /** 套索起点：开始一次新的套索选择。 */
+    public void lassoStart(String payloadJson) {
+        float[] pt = parseFirstPoint(payloadJson);
+        if (pt == null) {
+            return;
+        }
+        if (currentPage < 0 || currentPage >= pageViews.size()) {
+            return;
+        }
+        PageView pageView = pageViews.get(currentPage);
+        pageView.lassoPath = new Path();
+        pageView.lassoPath.moveTo(pt[0], pt[1]);
+        pageView.lassoPaint = new Paint();
+        pageView.lassoPaint.setColor(Color.BLUE);
+        pageView.lassoPaint.setAlpha(51);
+        pageView.lassoPaint.setStyle(Paint.Style.STROKE);
+        pageView.lassoPaint.setStrokeWidth(2);
+        pageView.invalidate();
+    }
+
+    /** 套索路径更新：追加一个点。 */
+    public void lassoUpdate(String payloadJson) {
+        float[] pt = parseFirstPoint(payloadJson);
+        if (pt == null) {
+            return;
+        }
+        if (currentPage < 0 || currentPage >= pageViews.size()) {
+            return;
+        }
+        PageView pageView = pageViews.get(currentPage);
+        if (pageView.lassoPath == null) {
+            lassoStart(payloadJson);
+            return;
+        }
+        pageView.lassoPath.lineTo(pt[0], pt[1]);
+        pageView.invalidate();
+    }
+
+    /** 套索结束：命中判定与上报。 */
+    public void lassoComplete(String payloadJson) {
+        if (currentPage < 0 || currentPage >= pageViews.size()) {
+            return;
+        }
+        pageViews.get(currentPage).endLassoSelection();
+    }
+
+    /**
+     * 从 JS 的套索载荷里取第一个点。
+     * 兼容三种形态：{"points":[{x,y},...]} / [{x,y},...] / {x,y}，
+     * 因为工具栏与不同屏幕传入的形状历史上并不统一。
+     */
+    private float[] parseFirstPoint(String payloadJson) {
+        if (payloadJson == null || payloadJson.isEmpty()) {
+            return null;
+        }
+        try {
+            String trimmed = payloadJson.trim();
+            if (trimmed.startsWith("{")) {
+                org.json.JSONObject obj = new org.json.JSONObject(trimmed);
+                if (obj.has("points")) {
+                    org.json.JSONArray arr = obj.optJSONArray("points");
+                    if (arr != null && arr.length() > 0) {
+                        org.json.JSONObject p = arr.optJSONObject(0);
+                        if (p != null) {
+                            return new float[]{(float) p.optDouble("x", 0d), (float) p.optDouble("y", 0d)};
+                        }
+                    }
+                }
+                return new float[]{(float) obj.optDouble("x", 0d), (float) obj.optDouble("y", 0d)};
+            }
+            if (trimmed.startsWith("[")) {
+                org.json.JSONArray arr = new org.json.JSONArray(trimmed);
+                // 可能是 [[x,y],...] 或 [{x,y},...]
+                if (arr.length() > 0) {
+                    Object first = arr.opt(0);
+                    if (first instanceof org.json.JSONObject) {
+                        org.json.JSONObject p = (org.json.JSONObject) first;
+                        return new float[]{(float) p.optDouble("x", 0d), (float) p.optDouble("y", 0d)};
+                    }
+                    if (first instanceof org.json.JSONArray) {
+                        org.json.JSONArray pair = (org.json.JSONArray) first;
+                        if (pair.length() >= 2) {
+                            return new float[]{(float) pair.optDouble(0, 0d), (float) pair.optDouble(1, 0d)};
+                        }
+                    }
+                }
+            }
+        } catch (org.json.JSONException e) {
+            Log.w(TAG, "套索载荷解析失败: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /** 结束选择：清掉高亮与选中集合。 */
+    public void clearStrokeSelection() {
+        clearSelectionOnAllPages();
+        for (PageView pv : pageViews) {
+            pv.invalidate();
+        }
+    }
+
+    /** 把 JS 传来的 id 数组（JSON 字符串或逗号分隔）解析成列表，脏数据一律忽略。 */
+    private List<String> parseStrokeIds(String raw) {
+        List<String> ids = new ArrayList<>();
+        if (raw == null || raw.isEmpty()) return ids;
+        try {
+            org.json.JSONArray arr = new org.json.JSONArray(raw);
+            for (int i = 0; i < arr.length(); i++) {
+                String id = arr.optString(i, null);
+                if (id != null && !id.isEmpty()) ids.add(id);
+            }
+        } catch (org.json.JSONException e) {
+            // 兼容逗号分隔写法
+            for (String part : raw.split(",")) {
+                String id = part.trim();
+                if (!id.isEmpty()) ids.add(id);
+            }
+        }
+        return ids;
+    }
+
+    private void clearSelectionOnAllPages() {
+        for (PageView pv : pageViews) {
+            pv.currentSelection = null;
+            pv.lassoPath = null;
+            pv.lassoPaint = null;
+        }
+    }
+
+    /**
+     * 交互模式：ink 只画、gesture 只手势、mixed 二者并存。
+     * 之前 JS 每步都发这个命令，但原生没有对应命令，属于静默丢弃。
+     */
+    public void setInteractionMode(String mode) {
+        if (mode == null || mode.isEmpty()) {
+            return;
+        }
+        this.interactionMode = mode;
+        Log.d(TAG, "交互模式更新: " + mode);
+    }
+
+    private static double clamp01(double value) {
+        if (Double.isNaN(value)) {
+            return 0.0;
+        }
+        return Math.max(0.0, Math.min(1.0, value));
+    }
+
+    /**
+     * 是否应该用当前触点绘制：
+     *  - palmRejectionEnabled=false 时，手指也可以画（自由书写）；
+     *  - 开启防误触时只有手写笔能画，手指留给滚动手势。
+     */
+    private boolean shouldDrawWithTouch(boolean isStylus, int pointerCount) {
+        if (pointerCount == 2) {
+            return false; // 双指始终交给父容器缩放
+        }
+        if (isStylus) {
+            return true;
+        }
+        if (!palmRejectionEnabled) {
+            return "draw".equals(fingerMode) || "draw_with_finger".equals(fingerMode) || "any".equals(fingerMode);
+        }
+        return false;
     }
 
     /**
@@ -1210,6 +1965,7 @@ public class NativePagedNoteView extends ScrollView {
                 pageView.invalidate();
             }
         }
+        sendHistoryStateChangeEvent();
     }
 
     public void redo() {
@@ -1222,14 +1978,52 @@ public class NativePagedNoteView extends ScrollView {
                 pageView.invalidate();
             }
         }
+        sendHistoryStateChangeEvent();
     }
 
+    /**
+     * 清除内容。scope 来自 JS（current_page / entire_document / all / selected）。
+     * 此前无论传什么范围都只清当前页，属于「范围被忽略」。
+     */
     public void clear() {
-        if (currentPage >= 0 && currentPage < pageViews.size()) {
-            PageData pageData = pages.get(currentPage);
-            pageData.strokes.clear();
-            pageViews.get(currentPage).invalidate();
+        clear("current_page");
+    }
+
+    public void clear(String scope) {
+        String normalized = (scope == null || scope.isEmpty()) ? "current_page" : scope;
+        if ("entire_document".equals(normalized) || "all".equals(normalized) || "document".equals(normalized)) {
+            for (int i = 0; i < pages.size(); i++) {
+                pages.get(i).strokes.clear();
+                pages.get(i).redoStack.clear();
+                if (i < pageViews.size()) {
+                    pageViews.get(i).invalidate();
+                }
+            }
+        } else {
+            if (currentPage >= 0 && currentPage < pageViews.size()) {
+                PageData pageData = pages.get(currentPage);
+                pageData.strokes.clear();
+                pageData.redoStack.clear();
+                pageViews.get(currentPage).invalidate();
+            }
         }
+        sendHistoryStateChangeEvent();
+    }
+
+    /** 通知 JS 撤销/重做是否可用（此前只有 PDF 会发这个事件）。 */
+    private void sendHistoryStateChangeEvent() {
+        boolean canUndo = false;
+        boolean canRedo = false;
+        if (currentPage >= 0 && currentPage < pages.size()) {
+            PageData pageData = pages.get(currentPage);
+            canUndo = !pageData.strokes.isEmpty();
+            canRedo = pageData.redoStack != null && !pageData.redoStack.isEmpty();
+        }
+        WritableMap event = Arguments.createMap();
+        event.putBoolean("canUndo", canUndo);
+        event.putBoolean("canRedo", canRedo);
+        event.putInt("page", currentPage);
+        sendEvent("onHistoryStateChange", event);
     }
 
     public void recognizeHandwriting(String strokeId) {
@@ -1274,8 +2068,75 @@ public class NativePagedNoteView extends ScrollView {
         }
     }
 
+    /**
+     * 插入文本。
+     *
+     * 此前这里只有一行 Log.d —— 用户点「添加文本」并确认后**什么都不会发生**，
+     * 是工具栏里最典型的「界面在、功能没有」。
+     * 现在按 styleJson 里的样式建一条 TextStrokeData，加入当前页并进入撤销栈，
+     * 与其它笔迹一样参与撤销/重做、导出与导入。
+     *
+     * @param text      文本内容（支持 \n 多行）
+     * @param styleJson 样式 JSON：fontSize/color/bold/italic/underline/alignment，
+     *                  以及可选的 x/y（页面坐标；不传则落在当前页中心）
+     */
+    public void insertText(String text, String styleJson) {
+        if (text == null || text.isEmpty()) {
+            Log.w(TAG, "insertText: 文本为空，忽略");
+            return;
+        }
+        if (currentPage < 0 || currentPage >= pageViews.size()) {
+            Log.w(TAG, "insertText: 当前页无效 page=" + currentPage);
+            return;
+        }
+
+        try {
+            org.json.JSONObject style = new org.json.JSONObject(
+                (styleJson == null || styleJson.isEmpty()) ? "{}" : styleJson);
+
+            PageData pageData = pages.get(currentPage);
+            PageView pageView = pageViews.get(currentPage);
+
+            float fontSize = (float) style.optDouble("fontSize", 16d);
+            String colorHex = style.optString("color", null);
+            boolean bold = style.optBoolean("bold", false);
+            boolean italic = style.optBoolean("italic", false);
+            boolean underline = style.optBoolean("underline", false);
+            String alignment = style.optString("alignment", "left");
+
+            // 默认落点：页面中心。与「文本工具栏」不给坐标时的直觉一致。
+            float pageW = pageView.getWidth() / Math.max(0.0001f, scaleFactor);
+            float pageH = pageView.getHeight() / Math.max(0.0001f, scaleFactor);
+            float x = (float) style.optDouble("x", pageW / 2f);
+            float y = (float) style.optDouble("y", pageH / 2f);
+
+            TextStrokeData stroke = new TextStrokeData(
+                text, x, y, fontSize, colorHex, bold, italic, underline, alignment);
+            pageData.strokes.add(stroke);
+            if (pageData.redoStack != null) {
+                pageData.redoStack.clear();
+            }
+
+            pageView.invalidate();
+            sendHistoryStateChangeEvent();
+
+            // 与形状/图片一致地上报笔迹提交，便于 JS 侧统计与后续识别
+            WritableMap event = Arguments.createMap();
+            event.putString("strokeId", stroke.id);
+            event.putString("tool", "text");
+            event.putString("text", text);
+            event.putInt("page", currentPage);
+            sendEvent("onStrokeCommitted", event);
+
+            Log.d(TAG, "insertText 完成: " + text + " @(" + x + "," + y + ")");
+        } catch (Exception e) {
+            Log.e(TAG, "insertText 失败", e);
+        }
+    }
+
+    /** 兼容旧签名：不带样式时按默认样式插入。 */
     public void insertText(String text) {
-        Log.d(TAG, "insertText: " + text);
+        insertText(text, null);
     }
 
     public void addImage(String imageUri) {
@@ -1343,6 +2204,44 @@ public class NativePagedNoteView extends ScrollView {
                 org.json.JSONArray strokesArray = pageObj.getJSONArray("strokes");
                 for (int j = 0; j < strokesArray.length(); j++) {
                     org.json.JSONObject strokeObj = strokesArray.getJSONObject(j);
+                    String type = strokeObj.optString("type", "stroke");
+
+                    // 文本：按保存的原始内容与样式还原，保持可编辑语义
+                    if ("text".equals(type)) {
+                        pageData.strokes.add(new TextStrokeData(
+                            strokeObj.optString("text", ""),
+                            (float) strokeObj.optDouble("x", 0d),
+                            (float) strokeObj.optDouble("y", 0d),
+                            (float) strokeObj.optDouble("fontSize", 16d),
+                            strokeObj.optString("color", null),
+                            strokeObj.optBoolean("bold", false),
+                            strokeObj.optBoolean("italic", false),
+                            strokeObj.optBoolean("underline", false),
+                            strokeObj.optString("alignment", "left")));
+                        continue;
+                    }
+
+                    // 图片：从内嵌 base64 还原位图；解码失败则跳过该条而不是让整篇导入失败
+                    if ("image".equals(type)) {
+                        String b64 = strokeObj.optString("bitmapBase64", "");
+                        if (!b64.isEmpty()) {
+                            try {
+                                byte[] bytes = android.util.Base64.decode(b64, android.util.Base64.DEFAULT);
+                                Bitmap bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                                if (bmp != null) {
+                                    pageData.strokes.add(new ImageStrokeData(
+                                        bmp,
+                                        (float) strokeObj.optDouble("x", 0d),
+                                        (float) strokeObj.optDouble("y", 0d),
+                                        (float) strokeObj.optDouble("w", 0d),
+                                        (float) strokeObj.optDouble("h", 0d)));
+                                }
+                            } catch (Exception imgErr) {
+                                Log.w(TAG, "导入图片笔迹失败，已跳过", imgErr);
+                            }
+                        }
+                        continue;
+                    }
 
                     // 创建画笔
                     Paint paint = new Paint();
@@ -1384,6 +2283,8 @@ public class NativePagedNoteView extends ScrollView {
 
                 // 添加页面视图
                 PageView pageView = new PageView(getContext(), i, pageData);
+                // 导入的页同样继承当前形状/填充，保持与新建页一致的行为
+                pageView.setShapeConfig(pendingShape, shapeFillEnabled);
 
                 pages.add(pageData);
                 pageViews.add(pageView);
@@ -1441,6 +2342,45 @@ public class NativePagedNoteView extends ScrollView {
                 for (StrokeData stroke : pageData.strokes) {
                     org.json.JSONObject strokeObj = new org.json.JSONObject();
 
+                    // 文本与图片必须单独序列化：它们不靠 points 表达内容，
+                    // 若沿用「只存 points」的旧逻辑，保存再打开就会**静默丢失**，
+                    // 用户会以为笔记内容自己消失了。
+                    if (stroke instanceof TextStrokeData) {
+                        TextStrokeData t = (TextStrokeData) stroke;
+                        strokeObj.put("type", "text");
+                        strokeObj.put("text", t.text);
+                        strokeObj.put("x", t.x);
+                        strokeObj.put("y", t.y);
+                        strokeObj.put("fontSize", t.fontSize);
+                        strokeObj.put("color", t.colorHex != null
+                            ? t.colorHex : String.format("#%06X", (0xFFFFFF & t.paint.getColor())));
+                        strokeObj.put("bold", t.bold);
+                        strokeObj.put("italic", t.italic);
+                        strokeObj.put("underline", t.underline);
+                        strokeObj.put("alignment", t.alignment);
+                        strokesArray.put(strokeObj);
+                        continue;
+                    }
+                    if (stroke instanceof ImageStrokeData) {
+                        ImageStrokeData img = (ImageStrokeData) stroke;
+                        strokeObj.put("type", "image");
+                        strokeObj.put("x", img.x);
+                        strokeObj.put("y", img.y);
+                        strokeObj.put("w", img.w);
+                        strokeObj.put("h", img.h);
+                        // 位图以 PNG base64 内嵌：这是唯一能跨设备还原的方式
+                        // （本地文件路径在别的设备上无效）。图在导出时才压缩，平时不占额外内存。
+                        if (img.bitmap != null) {
+                            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+                            img.bitmap.compress(Bitmap.CompressFormat.PNG, 100, bos);
+                            strokeObj.put("bitmapBase64", android.util.Base64.encodeToString(
+                                bos.toByteArray(), android.util.Base64.NO_WRAP));
+                        }
+                        strokesArray.put(strokeObj);
+                        continue;
+                    }
+
+                    strokeObj.put("type", "stroke");
                     // 保存笔迹颜色和宽度
                     strokeObj.put("color", String.format("#%06X", (0xFFFFFF & stroke.paint.getColor())));
                     strokeObj.put("strokeWidth", stroke.paint.getStrokeWidth());
@@ -1701,6 +2641,40 @@ public class NativePagedNoteView extends ScrollView {
             super(new Path(), new Paint(Paint.ANTI_ALIAS_FLAG), new java.util.ArrayList<StrokePoint>());
             this.bitmap = bitmap;
             this.x = x; this.y = y; this.w = w; this.h = h;
+        }
+    }
+
+    /**
+     * 文本笔迹。
+     *
+     * 为什么单独建一个类型而不是继续往 Path 里塞：
+     * 文本的绘制需要「可编辑的内容 + 排版属性」，
+     * 而 Path 只保留最终轮廓，导出后再导入就丢失了字号/颜色/粗体等语义，
+     * 用户在其它设备上拿到的只是不可再编辑的矢量轮廓。
+     * 保存原始文本与样式，才能让导出/导入/跨端还原保持可编辑。
+     */
+    static class TextStrokeData extends StrokeData {
+        String text;
+        float x, y;
+        float fontSize;
+        String colorHex;
+        boolean bold;
+        boolean italic;
+        boolean underline;
+        String alignment;
+
+        TextStrokeData(String text, float x, float y, float fontSize, String colorHex,
+                       boolean bold, boolean italic, boolean underline, String alignment) {
+            super(new Path(), new Paint(Paint.ANTI_ALIAS_FLAG), new java.util.ArrayList<StrokePoint>());
+            this.text = text;
+            this.x = x;
+            this.y = y;
+            this.fontSize = fontSize;
+            this.colorHex = colorHex;
+            this.bold = bold;
+            this.italic = italic;
+            this.underline = underline;
+            this.alignment = alignment;
         }
     }
 

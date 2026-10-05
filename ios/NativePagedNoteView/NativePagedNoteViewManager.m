@@ -102,7 +102,7 @@ RCT_EXPORT_METHOD(recognizeHandwriting:(nonnull NSNumber *)reactTag
 // Events
 - (NSArray<NSString *> *)customDirectEventTypes
 {
-  return @[@"onStrokeCommitted", @"onPageChange", @"onMetrics", @"onExportComplete", @"onReady", @"onHandwritingRecognized", @"onZoomChange"];
+  return @[@"onStrokeCommitted", @"onPageChange", @"onMetrics", @"onExportComplete", @"onReady", @"onHandwritingRecognized", @"onZoomChange", @"onHistoryStateChange", @"onStrokesSelected"];
 }
 
 // Commands 映射，供 UIManager.dispatchViewManagerCommand 使用
@@ -110,20 +110,51 @@ RCT_EXPORT_METHOD(recognizeHandwriting:(nonnull NSNumber *)reactTag
 {
   return @{
     @"Commands": @{
+      // 协议名与历史别名必须成对登记：getSurfaceCommandNames 会先试协议名，
+      // 只登记别名虽然也能兜底，但名字一旦对不上就会静默丢命令。
+      @"recognize": @1,
       @"recognizeHandwriting": @1,
+      // JS 协议命令名是 addText；insertText 是历史别名，两者必须同时登记，
+      // 否则 useNativeToolbarBridge 的别名解析会找不到命令而静默不发。
+      // 说明：这两个名字共用同一命令号（同一条实现路径）。
+      @"addText": @2,
       @"insertText": @2,
+      // exportAnnotations/importAnnotations 是协议名，exportNote/importNote 是别名：
+      // 只登记旧名会让「导出/导入」按钮在协议路径下变成空点击。
+      @"exportAnnotations": @3,
       @"exportNote": @3,
       @"undo": @4,
       @"redo": @5,
       @"clear": @6,
       @"setCurrentPage": @7,
+      @"setPage": @7,
       @"setCurrentTool": @8,
+      @"setTool": @8,
       @"setCurrentColor": @9,
+      @"setColor": @9,
       @"setCurrentStrokeWidth": @10,
+      @"setStrokeWidth": @10,
       @"addNewPage": @11,
+      @"addPage": @11,
+      @"importAnnotations": @12,
       @"importNote": @12,
       @"setToolConfig": @15,
-      @"addImage": @18
+      @"addImage": @18,
+      @"setInteractionMode": @19,
+      // 视口与套索：JS 的 setViewport/resetViewport/lassoStart/lassoUpdate/
+      // lassoComplete 此前在命令表里没有条目，dispatchCommand 找不到命令号就
+      // 静默返回 false，表现为「套索套一圈没反应、视口指令无效」。
+      @"setViewport": @20,
+      @"resetViewport": @21,
+      @"lassoStart": @22,
+      @"lassoUpdate": @22,
+      @"lassoComplete": @23,
+      // 选中笔迹操作：JS 侧已改用这组协议名派发，原生必须逐条登记，
+      // 否则「删除/复制/移动/取消选中」都会静默变成空操作。
+      @"deleteSelectedStrokes": @24,
+      @"duplicateSelectedStrokes": @25,
+      @"moveSelectedStrokes": @26,
+      @"clearStrokeSelection": @27
     }
   };
 }
@@ -154,12 +185,17 @@ RCT_EXPORT_METHOD(recognizeHandwriting:(nonnull NSNumber *)reactTag
           }];
         }
         break;
-      case 2: // insertText
+      case 2: // addText / insertText
         if (commandArgs.count > 0) {
-          [view insertText:commandArgs[0]];
+          // 第二个参数是样式 JSON（fontSize/color/bold/italic/underline/alignment）。
+          // 此前只传第一个参数，用户在面板里调好的样式在画布上完全无效。
+          NSString *styleJson = commandArgs.count > 1 && [commandArgs[1] isKindOfClass:[NSString class]]
+            ? commandArgs[1]
+            : nil;
+          [view insertText:commandArgs[0] styleJson:styleJson];
         }
         break;
-      case 3: // exportNote
+      case 3: // exportNote / exportAnnotations
         if (commandArgs.count > 0) {
           [view exportNote:commandArgs[0]];
         }
@@ -198,7 +234,7 @@ RCT_EXPORT_METHOD(recognizeHandwriting:(nonnull NSNumber *)reactTag
       case 11: // addNewPage
         [view addNewPage];
         break;
-      case 12: // importNote
+      case 12: // importNote / importAnnotations
         if (commandArgs.count > 0) {
           [view importNote:commandArgs[0]];
         }
@@ -210,8 +246,65 @@ RCT_EXPORT_METHOD(recognizeHandwriting:(nonnull NSNumber *)reactTag
         break;
       case 18: // addImage
         if (commandArgs.count > 0) {
-          [view addImage:commandArgs[0]];
+          // 第二个参数是图片元数据（width/height/fileName）：没有宽高比，
+          // 原生只能猜比例，横图会被压成方的。
+          NSString *metaJson = commandArgs.count > 1 && [commandArgs[1] isKindOfClass:[NSString class]]
+            ? commandArgs[1]
+            : nil;
+          [view addImage:commandArgs[0] metaJson:metaJson];
         }
+        break;
+      case 19: // setInteractionMode
+        if (commandArgs.count > 0) {
+          [view setInteractionMode:commandArgs[0]];
+        }
+        break;
+      case 20: // setViewport
+        if (commandArgs.count > 0) {
+          // JS 侧把 viewport 序列化成 JSON 字符串传；也兼容直接传字典的写法。
+          if ([commandArgs[0] isKindOfClass:[NSString class]]) {
+            NSData *data = [commandArgs[0] dataUsingEncoding:NSUTF8StringEncoding];
+            id parsed = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            if ([parsed isKindOfClass:[NSDictionary class]]) {
+              [view setViewport:parsed];
+            }
+          } else if ([commandArgs[0] isKindOfClass:[NSDictionary class]]) {
+            [view setViewport:commandArgs[0]];
+          }
+        }
+        break;
+      case 21: // resetViewport
+        [view resetViewport];
+        break;
+      case 22: // lassoStart / lassoUpdate
+        if (commandArgs.count > 0 && [commandArgs[0] isKindOfClass:[NSString class]]) {
+          [view updateLassoFromJSON:commandArgs[0]];
+        }
+        break;
+      case 23: // lassoComplete
+        [view endLassoSelection];
+        break;
+      case 24: // deleteSelectedStrokes
+        if (commandArgs.count > 0 && [commandArgs[0] isKindOfClass:[NSString class]]) {
+          [view deleteSelectedStrokes:commandArgs[0]];
+        }
+        break;
+      case 25: // duplicateSelectedStrokes
+        if (commandArgs.count > 0 && [commandArgs[0] isKindOfClass:[NSString class]]) {
+          CGFloat dx = commandArgs.count > 1 ? [commandArgs[1] doubleValue] : 16.0;
+          CGFloat dy = commandArgs.count > 2 ? [commandArgs[2] doubleValue] : 16.0;
+          [view duplicateSelectedStrokes:commandArgs[0] dx:dx dy:dy];
+        }
+        break;
+      case 26: // moveSelectedStrokes
+        if (commandArgs.count > 0 && [commandArgs[0] isKindOfClass:[NSString class]]) {
+          CGFloat dx = commandArgs.count > 1 ? [commandArgs[1] doubleValue] : 0.0;
+          CGFloat dy = commandArgs.count > 2 ? [commandArgs[2] doubleValue] : 0.0;
+          [view moveSelectedStrokes:commandArgs[0] dx:dx dy:dy];
+        }
+        break;
+      case 27: // clearStrokeSelection
+        [view clearStrokeSelection];
         break;
       default:
         break;

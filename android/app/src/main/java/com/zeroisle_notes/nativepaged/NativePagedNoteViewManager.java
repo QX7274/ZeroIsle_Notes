@@ -5,6 +5,7 @@ import androidx.annotation.Nullable;
 
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.ReadableType;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.common.MapBuilder;
@@ -84,6 +85,20 @@ public class NativePagedNoteViewManager extends SimpleViewManager<NativePagedNot
             .put("importNote", 12) // 导入笔记数据
             .put("setToolConfig", 15)
             .put("addImage", 18)    // 新增图片上传
+            .put("setInteractionMode", 19) // 交互模式 ink/gesture/mixed
+            // 选中笔迹的操作：工具栏「删除/复制/完成」按钮下发。
+            // 此前原生会上报选中结果却没有可操作通道，工具栏只能降级成「暂不支持」。
+            .put("deleteSelectedStrokes", 20)
+            .put("duplicateSelectedStrokes", 21)
+            .put("moveSelectedStrokes", 22)
+            .put("clearStrokeSelection", 23)
+            // 视口与套索：JS 一直在派发，但 Android 命令表里从来没有这几条，
+            // dispatchCommand 找不到命令号就静默 return false（「编排视口无效」「套索没反应」）。
+            .put("setViewport", 24)
+            .put("resetViewport", 25)
+            .put("lassoStart", 26)
+            .put("lassoUpdate", 27)
+            .put("lassoComplete", 28)
             .build();
     }
 
@@ -98,7 +113,11 @@ public class NativePagedNoteViewManager extends SimpleViewManager<NativePagedNot
                 break;
             case 2: // insertText
                 if (args != null && args.size() > 0) {
-                    root.insertText(args.getString(0));
+                    // 第二个参数是可选的样式 JSON（fontSize/color/bold/italic/underline/alignment）。
+                    // 旧调用只传文本，这里保持向后兼容。
+                    String styleJson = (args.size() > 1 && args.getType(1) == ReadableType.String)
+                        ? args.getString(1) : null;
+                    root.insertText(args.getString(0), styleJson);
                 }
                 break;
             case 3: // exportNote
@@ -113,7 +132,11 @@ public class NativePagedNoteViewManager extends SimpleViewManager<NativePagedNot
                 root.redo();
                 break;
             case 6: // clear
-                root.clear();
+                if (args != null && args.size() > 0 && args.getType(0) == ReadableType.String) {
+                    root.clear(args.getString(0));
+                } else {
+                    root.clear();
+                }
                 break;
             case 7: // setCurrentPage
                 if (args != null && args.size() > 0) {
@@ -153,6 +176,59 @@ public class NativePagedNoteViewManager extends SimpleViewManager<NativePagedNot
                     root.addImage(args.getString(0));
                 }
                 break;
+            case 19: // setInteractionMode
+                if (args != null && args.size() > 0) {
+                    root.setInteractionMode(args.getString(0));
+                }
+                break;
+            // 以下四个是「选中笔迹」的操作通道。
+            // 参数一律传 strokeIds 的 JSON 字符串：这样即使 3 秒自动清除选中态先触发，
+            // 用户刚才那次操作仍然作用在他当时看到的那批笔迹上。
+            case 20: // deleteSelectedStrokes
+                if (args != null && args.size() > 0) {
+                    root.deleteSelectedStrokes(args.getString(0));
+                }
+                break;
+            case 21: // duplicateSelectedStrokes(strokeIdsJson, dx, dy)
+                if (args != null && args.size() > 0) {
+                    float dupDx = (args.size() > 1) ? (float) args.getDouble(1) : 16f;
+                    float dupDy = (args.size() > 2) ? (float) args.getDouble(2) : 16f;
+                    root.duplicateSelectedStrokes(args.getString(0), dupDx, dupDy);
+                }
+                break;
+            case 22: // moveSelectedStrokes(strokeIdsJson, dx, dy)
+                if (args != null && args.size() > 0) {
+                    float mvDx = (args.size() > 1) ? (float) args.getDouble(1) : 0f;
+                    float mvDy = (args.size() > 2) ? (float) args.getDouble(2) : 0f;
+                    root.moveSelectedStrokes(args.getString(0), mvDx, mvDy);
+                }
+                break;
+            case 23: // clearStrokeSelection
+                root.clearStrokeSelection();
+                break;
+            case 24: // setViewport(viewportJson) —— JS 传的是 JSON 字符串，不是数字
+                if (args != null && args.size() > 0) {
+                    root.setViewport(args.getString(0));
+                }
+                break;
+            case 25: // resetViewport
+                root.resetViewport();
+                break;
+            case 26: // lassoStart(payloadJson)
+                if (args != null && args.size() > 0) {
+                    root.lassoStart(args.getString(0));
+                }
+                break;
+            case 27: // lassoUpdate(payloadJson)
+                if (args != null && args.size() > 0) {
+                    root.lassoUpdate(args.getString(0));
+                }
+                break;
+            case 28: // lassoComplete(payloadJson)
+                if (args != null && args.size() > 0) {
+                    root.lassoComplete(args.getString(0));
+                }
+                break;
         }
     }
 
@@ -167,6 +243,8 @@ public class NativePagedNoteViewManager extends SimpleViewManager<NativePagedNot
             .put("onZoomChange", MapBuilder.of("registrationName", "onZoomChange"))
             .put("onHandwritingRecognized", MapBuilder.of("registrationName", "onHandwritingRecognized"))
             .put("onExportComplete", MapBuilder.of("registrationName", "onExportComplete"))
+            .put("onHistoryStateChange", MapBuilder.of("registrationName", "onHistoryStateChange"))
+            .put("onStrokesSelected", MapBuilder.of("registrationName", "onStrokesSelected"))
             .put("onMetrics", MapBuilder.of("registrationName", "onMetrics"))
             .build();
     }
@@ -266,6 +344,3 @@ public class NativePagedNoteViewManager extends SimpleViewManager<NativePagedNot
         }
     }
 }
-
-
-

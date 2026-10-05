@@ -84,6 +84,12 @@ const LEGACY_ALIASES = Object.freeze({
     setTool: ['setTool', 'setCurrentTool'],
     setColor: ['setColor', 'setCurrentColor'],
     setStrokeWidth: ['setStrokeWidth', 'setCurrentStrokeWidth'],
+    // 选中笔迹的操作。此前原生会上报 onStrokesSelected，但没有任何可操作通道，
+    // 工具栏因此只能把「删除/复制」显示成「暂不支持」。
+    deleteSelectedStrokes: ['deleteSelectedStrokes'],
+    duplicateSelectedStrokes: ['duplicateSelectedStrokes'],
+    moveSelectedStrokes: ['moveSelectedStrokes'],
+    clearStrokeSelection: ['clearStrokeSelection'],
   },
   [SURFACE_TYPES.INFINITE]: {
     setToolConfig: ['setToolConfig'],
@@ -150,7 +156,9 @@ export const DEFAULT_RECOGNITION_DEBOUNCE_MS = 180;
 
 export const getSurfaceCommandNames = (viewType, commandName) => {
   const commandAliases = LEGACY_ALIASES[viewType]?.[commandName] || [];
-  return [commandName, ...commandAliases].filter(Boolean);
+  // 协议名永远排第一，且与历史别名去重：原生 ViewManager 的 Commands 表里
+  // 往往只登记其中一个名字，重复项会让解析结果看起来像两个命令。
+  return [...new Set([commandName, ...commandAliases].filter(Boolean))];
 };
 
 export const normalizeClearScope = (scope) => {

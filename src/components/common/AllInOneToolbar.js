@@ -1446,6 +1446,9 @@ const AllInOneToolbar = ({
       taperOut: overrides.taperOut ?? (nextPen?.taper?.end ?? currentToolConfig?.taperOut),
       smoothing: overrides.smoothing ?? (nextPen?.smoothing ?? currentToolConfig?.smoothing),
       shape: overrides.shape || (nextTool === DRAWING_TOOLS.SHAPE ? activeShape : 'freehand'),
+      // 形状填充：随配置下发到原生（原生按它决定实心还是描边）。
+      // 注意它必须同时出现在 isSameToolConfig 的比较键里，否则拨开关不会触发下发。
+      fill: overrides.fill ?? shapeFillEnabled,
       recognitionEnabled: overrides.recognitionEnabled ?? currentToolConfig?.recognitionEnabled ?? true,
       recognitionDebounceMs: overrides.recognitionDebounceMs ?? currentToolConfig?.recognitionDebounceMs ?? 180,
       palmRejectionEnabled: overrides.palmRejectionEnabled ?? palmRejectionEnabled,
@@ -1465,6 +1468,9 @@ const AllInOneToolbar = ({
     fingerMode,
     palmRejectionEnabled,
     selectedPenType,
+    // fill 进了载荷，就必须进依赖：否则用户拨动「填充」后 useCallback 仍返回旧闭包，
+    // 下发出去的仍是旧的 fill 值（与「不下发」是同一类症状）。
+    shapeFillEnabled,
     showGrid,
     showRuler,
     strokeOpacity,
@@ -1479,6 +1485,9 @@ const AllInOneToolbar = ({
       'tool', 'type', 'color', 'size', 'strokeWidth', 'opacity',
       'penProfile', 'pressureSensitivity', 'velocitySensitivity',
       'taperIn', 'taperOut', 'smoothing', 'shape',
+      // fill 必须参与比较：否则用户拨动「填充」开关时会被判定为「配置没变」而整条不下发，
+      // 表现就是开关能拨、形状永远是空心（真机复现过这类「本地 state 变了但原生没收到」）。
+      'fill',
       'recognitionEnabled', 'recognitionDebounceMs',
       'palmRejectionEnabled', 'fingerMode', 'showRuler', 'showGrid',
       'mode', 'blendMode',
