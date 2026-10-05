@@ -17,6 +17,15 @@
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		AA100001B0B0B0B0B0B0B001 /* AIAssistant.m in Sources */ = {isa = PBXBuildFile; fileRef = AA100011B0B0B0B0B0B0B011 /* AIAssistant.m */; };
 		AA100002B0B0B0B0B0B0B002 /* PermanentStorageManager.m in Sources */ = {isa = PBXBuildFile; fileRef = AA100012B0B0B0B0B0B0B012 /* PermanentStorageManager.m */; };
+		B2000001B0B0B0B0B0B0B0001 /* NativePagedNoteView.m in Sources */ = {isa = PBXBuildFile; fileRef = F2000001B0B0B0B0B0B0B0001 /* NativePagedNoteView.m */; };
+		B2000002B0B0B0B0B0B0B0002 /* NativePagedNoteViewManager.m in Sources */ = {isa = PBXBuildFile; fileRef = F2000002B0B0B0B0B0B0B0002 /* NativePagedNoteViewManager.m */; };
+		B2000003B0B0B0B0B0B0B0003 /* NativeInfiniteCanvasView.m in Sources */ = {isa = PBXBuildFile; fileRef = F2000003B0B0B0B0B0B0B0003 /* NativeInfiniteCanvasView.m */; };
+		B2000004B0B0B0B0B0B0B0004 /* NativeInfiniteCanvasViewManager.m in Sources */ = {isa = PBXBuildFile; fileRef = F2000004B0B0B0B0B0B0B0004 /* NativeInfiniteCanvasViewManager.m */; };
+		B2000005B0B0B0B0B0B0B0005 /* NativePDFView.m in Sources */ = {isa = PBXBuildFile; fileRef = F2000005B0B0B0B0B0B0B0005 /* NativePDFView.m */; };
+		B2000006B0B0B0B0B0B0B0006 /* NativePDFViewManager.m in Sources */ = {isa = PBXBuildFile; fileRef = F2000006B0B0B0B0B0B0B0006 /* NativePDFViewManager.m */; };
+		B2000007B0B0B0B0B0B0B0007 /* ScreenUtils.m in Sources */ = {isa = PBXBuildFile; fileRef = F2000007B0B0B0B0B0B0B0007 /* ScreenUtils.m */; };
+		B2000008B0B0B0B0B0B0B0008 /* ColorPickerViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = F2000008B0B0B0B0B0B0B0008 /* ColorPickerViewController.m */; };
+		B2000009B0B0B0B0B0B0B0009 /* TouchTypeDetectionModule.m in Sources */ = {isa = PBXBuildFile; fileRef = F2000009B0B0B0B0B0B0B0009 /* TouchTypeDetectionModule.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,6 +60,15 @@
 		AA100010B0B0B0B0B0B0B010 /* AIAssistant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = AIAssistant.h; path = ZeroIsle_Notes/AIAssistant.h; sourceTree = "<group>"; };
 		AA100011B0B0B0B0B0B0B011 /* AIAssistant.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = AIAssistant.m; path = ZeroIsle_Notes/AIAssistant.m; sourceTree = "<group>"; };
 		AA100012B0B0B0B0B0B0B012 /* PermanentStorageManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = PermanentStorageManager.m; path = PermanentStorageManager.m; sourceTree = "<group>"; };
+		F2000001B0B0B0B0B0B0B0001 /* NativePagedNoteView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = NativePagedNoteView.m; path = NativePagedNoteView/NativePagedNoteView.m; sourceTree = "<group>"; };
+		F2000002B0B0B0B0B0B0B0002 /* NativePagedNoteViewManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = NativePagedNoteViewManager.m; path = NativePagedNoteView/NativePagedNoteViewManager.m; sourceTree = "<group>"; };
+		F2000003B0B0B0B0B0B0B0003 /* NativeInfiniteCanvasView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = NativeInfiniteCanvasView.m; path = NativeInfiniteCanvasView/NativeInfiniteCanvasView.m; sourceTree = "<group>"; };
+		F2000004B0B0B0B0B0B0B0004 /* NativeInfiniteCanvasViewManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = NativeInfiniteCanvasViewManager.m; path = NativeInfiniteCanvasView/NativeInfiniteCanvasViewManager.m; sourceTree = "<group>"; };
+		F2000005B0B0B0B0B0B0B0005 /* NativePDFView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = NativePDFView.m; path = NativePDFView/NativePDFView.m; sourceTree = "<group>"; };
+		F2000006B0B0B0B0B0B0B0006 /* NativePDFViewManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = NativePDFViewManager.m; path = NativePDFView/NativePDFViewManager.m; sourceTree = "<group>"; };
+		F2000007B0B0B0B0B0B0B0007 /* ScreenUtils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = ScreenUtils.m; path = ScreenUtils.m; sourceTree = "<group>"; };
+		F2000008B0B0B0B0B0B0B0008 /* ColorPickerViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = ColorPickerViewController.m; path = ColorPickerViewController.m; sourceTree = "<group>"; };
+		F2000009B0B0B0B0B0B0B0009 /* TouchTypeDetectionModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = TouchTypeDetectionModule.m; path = ZeroIsle_Notes/TouchTypeDetectionModule.m; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -99,6 +117,15 @@
 				AA100010B0B0B0B0B0B0B010 /* AIAssistant.h */,
 				AA100011B0B0B0B0B0B0B011 /* AIAssistant.m */,
 				AA100012B0B0B0B0B0B0B012 /* PermanentStorageManager.m */,
+				F2000001B0B0B0B0B0B0B0001 /* NativePagedNoteView.m */,
+				F2000002B0B0B0B0B0B0B0002 /* NativePagedNoteViewManager.m */,
+				F2000003B0B0B0B0B0B0B0003 /* NativeInfiniteCanvasView.m */,
+				F2000004B0B0B0B0B0B0B0004 /* NativeInfiniteCanvasViewManager.m */,
+				F2000005B0B0B0B0B0B0B0005 /* NativePDFView.m */,
+				F2000006B0B0B0B0B0B0B0006 /* NativePDFViewManager.m */,
+				F2000007B0B0B0B0B0B0B0007 /* ScreenUtils.m */,
+				F2000008B0B0B0B0B0B0B0008 /* ColorPickerViewController.m */,
+				F2000009B0B0B0B0B0B0B0009 /* TouchTypeDetectionModule.m */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
@@ -423,6 +450,15 @@
 				13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */,
 				AA100001B0B0B0B0B0B0B001 /* AIAssistant.m in Sources */,
 				AA100002B0B0B0B0B0B0B002 /* PermanentStorageManager.m in Sources */,
+				B2000001B0B0B0B0B0B0B0001 /* NativePagedNoteView.m in Sources */,
+				B2000002B0B0B0B0B0B0B0002 /* NativePagedNoteViewManager.m in Sources */,
+				B2000003B0B0B0B0B0B0B0003 /* NativeInfiniteCanvasView.m in Sources */,
+				B2000004B0B0B0B0B0B0B0004 /* NativeInfiniteCanvasViewManager.m in Sources */,
+				B2000005B0B0B0B0B0B0B0005 /* NativePDFView.m in Sources */,
+				B2000006B0B0B0B0B0B0B0006 /* NativePDFViewManager.m in Sources */,
+				B2000007B0B0B0B0B0B0B0007 /* ScreenUtils.m in Sources */,
+				B2000008B0B0B0B0B0B0B0008 /* ColorPickerViewController.m in Sources */,
+				B2000009B0B0B0B0B0B0B0009 /* TouchTypeDetectionModule.m in Sources */,
 				13B07FC11A68108700A75B9A /* main.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -82,6 +82,9 @@ const DEFAULT_TOOL_CONFIG = Object.freeze({
   opacity: 1,
   penProfile: 'fountain',
   shape: 'freehand',
+  // 形状填充。工具栏的「填充」开关会传下来，但此前 bridge 归一化时没有这个字段，
+  // 于是它在 JS 层就被丢掉，原生永远收不到 —— 即使原生实现了填充也不会生效。
+  fill: false,
   pressureSensitivity: PROFILE_DEFAULTS.fountain.pressureSensitivity,
   velocitySensitivity: PROFILE_DEFAULTS.fountain.velocitySensitivity,
   taperIn: PROFILE_DEFAULTS.fountain.taperIn,
@@ -143,6 +146,8 @@ export const buildHandwritingToolConfig = (partialConfig = {}, previousConfig = 
     opacity: clamp(mergedInput.opacity ?? defaultOpacity, 0, 1, defaultOpacity),
     penProfile,
     shape: mergedInput.shape || previousConfig.shape || DEFAULT_TOOL_CONFIG.shape,
+    // 必须显式保留 fill：否则 toolbar 的填充开关传到这一层就没了。
+    fill: mergedInput.fill ?? previousConfig.fill ?? DEFAULT_TOOL_CONFIG.fill,
     pressureSensitivity: clamp(
       mergedInput.pressureSensitivity ?? previousConfig.pressureSensitivity ?? profileDefaults.pressureSensitivity,
       0,
@@ -457,15 +462,36 @@ export const useNativeToolbarBridge = (nativeViewRef, viewType, options = {}) =>
   }, [nativeViewRef, onBookmarkNavigateExternal, viewType]);
 
   const handleTextAdd = useCallback((textConfig) => {
-    if (textConfig?.text) {
-      dispatchCommand(nativeViewRef, viewType, 'addText', [textConfig.text]);
+    if (!textConfig?.text) {
+      return;
     }
+    // 必须把完整样式一起下发：原生需要 fontSize/color/bold/italic/underline/alignment
+    // 才能按用户看到的样子落笔。此前只发 [text]，样式在桥这层就被丢掉了，
+    // 结果「面板里调好的字号与颜色」在画布上完全无效。
+    const style = {
+      fontSize: Number.isFinite(Number(textConfig.fontSize)) ? Number(textConfig.fontSize) : 16,
+      color: typeof textConfig.color === 'string' ? textConfig.color : undefined,
+      bold: !!textConfig.style?.bold,
+      italic: !!textConfig.style?.italic,
+      underline: !!textConfig.style?.underline,
+      alignment: textConfig.alignment || 'left',
+    };
+    dispatchCommand(nativeViewRef, viewType, 'addText', [textConfig.text, JSON.stringify(style)]);
   }, [nativeViewRef, viewType]);
 
   const handleImageUpload = useCallback((imageInfo) => {
-    if (imageInfo?.uri) {
-      dispatchCommand(nativeViewRef, viewType, 'addImage', [imageInfo.uri]);
+    if (!imageInfo?.uri) {
+      return;
     }
+    // 图片元数据（宽高/文件名）同样要带上：原生需要宽高比来决定落图尺寸，
+    // 只发 uri 会让原生只能按默认比例猜。
+    const meta = {
+      width: Number.isFinite(Number(imageInfo.width)) ? Number(imageInfo.width) : undefined,
+      height: Number.isFinite(Number(imageInfo.height)) ? Number(imageInfo.height) : undefined,
+      fileName: imageInfo.fileName,
+      fileSize: Number.isFinite(Number(imageInfo.fileSize)) ? Number(imageInfo.fileSize) : undefined,
+    };
+    dispatchCommand(nativeViewRef, viewType, 'addImage', [imageInfo.uri, JSON.stringify(meta)]);
   }, [nativeViewRef, viewType]);
 
   const handleLassoSelect = useCallback((selectionPath) => {

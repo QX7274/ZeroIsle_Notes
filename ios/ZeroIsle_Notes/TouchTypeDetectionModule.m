@@ -8,6 +8,12 @@
 
 #import "TouchTypeDetectionModule.h"
 #import <React/RCTLog.h>
+// hasListeners 与 sendEventWithName:body: 由 RCTEventEmitter 提供；
+// 只 import 自己的 .h 时它们不总是可见，显式引入更稳。
+#import <React/RCTEventEmitter.h>
+// ReactApplicationContext 必须显式导入：+handleTouchEvent:...withContext: 的形参用了它，
+// 少了这行 clang 会在该行报 "expected a type"，且整个文件编不过。
+#import <React/RCTBridge.h>
 
 // 触摸类型常量
 NSString *const TOUCH_TYPE_FINGER = @"finger";
@@ -19,6 +25,11 @@ NSString *const EVENT_TOUCH_TYPE_DETECTED = @"TouchTypeDetected";
 
 @interface TouchTypeDetectionModule()
 @property (nonatomic, assign) BOOL isListening;
+// 自己维护「JS 侧是否还有监听者」。
+// 为什么不用 hasListeners：它不是 RCTEventEmitter 的公开 API（头文件里没有），
+// 直接调用会编译失败（"no visible @interface declares the selector"）。
+// RN 的标准做法是重写 startObserving/stopObserving 自行计数。
+@property (nonatomic, assign) NSInteger listenerCount;
 @end
 
 @implementation TouchTypeDetectionModule
@@ -38,6 +49,20 @@ RCT_EXPORT_MODULE(TouchTypeDetection);
         @"TOUCH_TYPE_UNKNOWN": TOUCH_TYPE_UNKNOWN,
         @"EVENT_TOUCH_TYPE_DETECTED": EVENT_TOUCH_TYPE_DETECTED
     };
+}
+
+#pragma mark - RCTEventEmitter 观察者生命周期
+
+// JS 侧第一次 addListener 时调用；最后一次移除时调用 stopObserving。
+// 用计数代替不存在的 hasListeners，避免向已无监听者的 emitter 发事件。
+- (void)startObserving {
+    self.listenerCount += 1;
+}
+
+- (void)stopObserving {
+    if (self.listenerCount > 0) {
+        self.listenerCount -= 1;
+    }
 }
 
 #pragma mark - React Methods
@@ -277,7 +302,9 @@ RCT_EXPORT_METHOD(getSupportedTouchTypes:(RCTPromiseResolveBlock)resolve
     touchData[@"y"] = @(location.y);
     touchData[@"force"] = @(touch.force);
     touchData[@"majorRadius"] = @(touch.majorRadius);
-    touchData[@"timestamp"] = @([touch.timestamp] * 1000);
+    // UITouch.timestamp 是属性，不是方法；写成 [touch.timestamp] 是非法消息发送，
+    // clang 会直接报 "expected identifier" 让整个文件编不过。
+    touchData[@"timestamp"] = @(touch.timestamp * 1000);
     
     if (@available(iOS 9.1, *)) {
         touchData[@"originalTouchType"] = @(touch.type);
@@ -327,8 +354,12 @@ RCT_EXPORT_METHOD(getSupportedTouchTypes:(RCTPromiseResolveBlock)resolve
 /**
  * 处理触摸事件并自动发送检测结果
  */
-+ (void)handleTouchEvent:(UITouch *)touch inView:(UIView *)view withContext:(ReactApplicationContext *)context {
-    NSString *touchType = [self detectTouchTypeFromUITouch:touch];
+// 改为实例方法：发事件必须经 RCTEventEmitter 实例（sendEventWithName:body: 与 hasListeners 都是实例方法）。
+// 原先是类方法且形参类型 ReactApplicationContext 未导入，既编不过也用不了。
+- (void)handleTouchEvent:(UITouch *)touch inView:(UIView *)view {
+    // detectTouchTypeFromUITouch: 是**类方法**，在实例方法里必须用类名调用；
+    // 用 [self ...] clang 会报 "no visible @interface declares the selector"。
+    NSString *touchType = [TouchTypeDetectionModule detectTouchTypeFromUITouch:touch];
     CGPoint location = [touch locationInView:view];
     
     NSDictionary *touchData = @{
@@ -337,14 +368,17 @@ RCT_EXPORT_METHOD(getSupportedTouchTypes:(RCTPromiseResolveBlock)resolve
         @"y": @(location.y),
         @"force": @(touch.force),
         @"majorRadius": @(touch.majorRadius),
-        @"timestamp": @([touch.timestamp] * 1000)
+        // 同 createTouchDataFromUITouch：timestamp 是属性，[touch.timestamp] 是非法消息发送
+        @"timestamp": @(touch.timestamp * 1000)
     };
     
     RCTLogInfo(@"发送触摸检测结果: %@", touchType);
     
-    // 发送事件到JavaScript层
-    if (context.hasActiveCatalystInstance) {
-        [context.deviceEventEmitter sendEventWithName:EVENT_TOUCH_TYPE_DETECTED body:touchData];
+    // 只在 JS 侧确实还挂着监听者时才发：
+    // hasActiveCatalystInstance / deviceEventEmitter / hasListeners 都不是可用的公开 API
+    // （旧写法会让文件编不过），因此用 startObserving/stopObserving 自行计数。
+    if (self.listenerCount > 0) {
+        [self sendEventWithName:EVENT_TOUCH_TYPE_DETECTED body:touchData];
     }
 }
 
