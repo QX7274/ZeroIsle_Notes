@@ -45,6 +45,9 @@ public class ZeroIsleNotesPackage implements ReactPackage {
             modules.add(new NotificationModule(reactContext));
             modules.add(new NotificationChannelModule(reactContext)); // 添加通知渠道模块
             modules.add(new DebugLogModule(reactContext)); // 开发态原生日志桥
+            // 屏幕取色器：模块名必须叫 ScreenUtils，才能与 iOS 侧同名模块对齐，
+            // 让 JS 的 isPickColorAvailable() 探测在 Android 上自动变为可用。
+            modules.add(new ScreenUtilsModule(reactContext));
             modules.add(new AIAssistantModule(reactContext));
             modules.add(new BaiduAIAssistantModule(reactContext));
             modules.add(new XunfeiAIAssistantModule(reactContext));

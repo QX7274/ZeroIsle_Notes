@@ -83,6 +83,10 @@ public class NativePDFView extends FrameLayout {
     private static final float MIN_ZOOM = 0.5f;  // 最小缩放50%
     private static final float MAX_ZOOM = 4.0f;  // 最大缩放400%
 
+    // PDF 页面之间的间距（dp），与 fromFile().spacing(10) 保持一致；
+    // 覆盖层与手写层计算文档偏移时都要用到，避免两处魔数各写一个值。
+    private static final float PDF_PAGE_SPACING = 10f;
+
     // 缩放事件优化 - 更频繁的报告以提高响应性
     private float lastReportedZoom = 1.0f;
     private static final float ZOOM_REPORT_THRESHOLD = 0.02f; // 2%变化就报告，提高响应性
@@ -101,6 +105,18 @@ public class NativePDFView extends FrameLayout {
     private int currentColor = Color.BLACK;
     private float currentStrokeWidth = 2.0f;
     private JSONObject currentToolConfig = new JSONObject();
+
+    // 工具栏覆盖层开关（标尺 / 网格）：由 setToolConfig 的 showRuler / showGrid 下发。
+    // 存在外层而不是手写层里，是为了让 PDF 重新加载、手写层重建后仍保留用户的选择；
+    // 默认 false —— 老版本 JS 不发这两个键时必须表现为「不画」，而不是凭空多出网格。
+    private boolean showRuler = false;
+    private boolean showGrid = false;
+
+    // 页面几何缓存（未缩放坐标）：下标 = 页号，pageTops[i] = 第 i 页顶端的文档内 Y 偏移。
+    // 加载完成时量一次，供手写层与覆盖层共用；数组为空表示尚未量好，走实时查询兜底。
+    private float[] pageWidths = new float[0];
+    private float[] pageHeights = new float[0];
+    private float[] pageTops = new float[0];
 
     // 笔迹数据存储（按页面索引）
     private List<List<StrokeData>> pageStrokes = new ArrayList<>();
@@ -197,6 +213,10 @@ public class NativePDFView extends FrameLayout {
             for (int i = 0; i < totalPages; i++) {
                 pageStrokes.add(new ArrayList<StrokeData>());
             }
+
+                        // 页面尺寸/偏移只在这里量一次：覆盖层按每页绘制，
+                        // 若放到 onDraw 里实时查询会变成每帧上百次 JNI。
+                        measurePageGeometry(totalPages);
 
                         // 通知手写层PDF已加载
                         drawingOverlay.onPDFLoaded(totalPages);
@@ -412,9 +432,127 @@ public class NativePDFView extends FrameLayout {
             JSONObject config = new JSONObject(configJson);
             this.currentToolConfig = config;
             drawingOverlay.setToolConfig(config);
+
+            // 标尺/网格是手写层上的覆盖层，必须让手写层知道开关并重绘：
+            // 关闭时 onDraw 会直接 return，因此不会留下上一次绘制的残影。
+            boolean nextShowRuler = config.optBoolean("showRuler", false);
+            boolean nextShowGrid = config.optBoolean("showGrid", false);
+            boolean overlayChanged = nextShowRuler != this.showRuler || nextShowGrid != this.showGrid;
+            this.showRuler = nextShowRuler;
+            this.showGrid = nextShowGrid;
+            if (overlayChanged) {
+                drawingOverlay.setOverlayVisibility(nextShowRuler, nextShowGrid);
+            }
+
             Log.d(TAG, "设置工具配置: " + configJson);
         } catch (JSONException e) {
             Log.e(TAG, "解析工具配置失败", e);
+        }
+    }
+
+    /**
+     * 当前页面顶端在整个 PDF 文档中的未缩放 Y 偏移（前面所有页面高度 + 页间距）。
+     *
+     * 手写层、标尺与网格都必须用同一个偏移量，否则覆盖层会和页面错位；
+     * 单独抽出来的目的就是让三处共用一份计算，不再各自抄一遍循环。
+     * 计算过程放在 try/catch 里：PDF 尚未 load 完成时 getPageSize 会抛异常，
+     * 此时返回 0（覆盖层退化为相对文档顶部绘制）比整帧崩掉更安全。
+     */
+    private float computePageOffsetY(int pageIndex) {
+        if (pageIndex <= 0) {
+            return 0;
+        }
+        // 缓存命中直接返回，避免 onDraw 每帧都对每页做一次 JNI 查询
+        if (pageIndex < pageTops.length) {
+            return pageTops[pageIndex];
+        }
+
+        float offsetY = 0;
+        try {
+            for (int i = 0; i < pageIndex; i++) {
+                offsetY += pdfView.getPageSize(i).getHeight();
+                offsetY += PDF_PAGE_SPACING; // 与 fromFile().spacing(...) 保持一致
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "计算页面偏移失败，覆盖层退化为文档顶部对齐", e);
+            return 0;
+        }
+        return offsetY;
+    }
+
+    /**
+     * 一次性量好每页的未缩放尺寸与文档内偏移。
+     *
+     * 覆盖层要按「每一页」而不是「当前页」绘制：PDF 是连续滚动的，只画当前页会在
+     * 页间距与相邻页留出空白带，滚动时肉眼可见覆盖层断掉。而逐页绘制若每帧调用
+     * getPageSize() 会退化成成百上千次 JNI，所以在加载完成时量一次、之后只做算术。
+     * 任何一页量不出来（pdfium 尚未就绪）就整体放弃缓存，由 computePageOffsetY
+     * 的实时分支兜底，宁可慢也不画错。
+     */
+    private void measurePageGeometry(int pages) {
+        if (pages <= 0) {
+            pageWidths = new float[0];
+            pageHeights = new float[0];
+            pageTops = new float[0];
+            return;
+        }
+
+        float[] widths = new float[pages];
+        float[] heights = new float[pages];
+        float[] tops = new float[pages];
+        float top = 0;
+
+        try {
+            for (int i = 0; i < pages; i++) {
+                widths[i] = pdfView.getPageSize(i).getWidth();
+                heights[i] = pdfView.getPageSize(i).getHeight();
+                // 量到 0 说明 pdfium 还没把这一页的尺寸准备好（loadComplete 回调
+                // 早于页面布局完成时会出现）。此时必须整体放弃缓存：缓存数组一旦
+                // 填满，pageWidthOf/computePageOffsetY 就会一直命中这些 0，
+                // 覆盖层会被静默跳过，而且再也不会自愈。
+                if (widths[i] <= 0 || heights[i] <= 0) {
+                    Log.w(TAG, String.format("第 %d 页尺寸尚未就绪(%.1f x %.1f)，覆盖层退回实时计算",
+                        i, widths[i], heights[i]));
+                    pageWidths = new float[0];
+                    pageHeights = new float[0];
+                    pageTops = new float[0];
+                    return;
+                }
+                tops[i] = top;
+                top += heights[i] + PDF_PAGE_SPACING;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "页面尺寸测量失败，覆盖层退回实时计算", e);
+            pageWidths = new float[0];
+            pageHeights = new float[0];
+            pageTops = new float[0];
+            return;
+        }
+
+        pageWidths = widths;
+        pageHeights = heights;
+        pageTops = tops;
+    }
+
+    private float pageWidthOf(int index) {
+        if (index >= 0 && index < pageWidths.length) {
+            return pageWidths[index];
+        }
+        try {
+            return pdfView.getPageSize(index).getWidth();
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private float pageHeightOf(int index) {
+        if (index >= 0 && index < pageHeights.length) {
+            return pageHeights[index];
+        }
+        try {
+            return pdfView.getPageSize(index).getHeight();
+        } catch (Exception e) {
+            return 0;
         }
     }
 
@@ -800,6 +938,14 @@ public class NativePDFView extends FrameLayout {
         // ✅ 缩放手势检测器
         private ScaleGestureDetector scaleDetector;
 
+        // 覆盖层开关与画笔：由外层 NativePDFView.setToolConfig 同步进来。
+        // 画笔做成成员，避免 onDraw 里每帧 new Paint（标尺每帧要画上百根刻度线）。
+        private boolean overlayShowRuler = false;
+        private boolean overlayShowGrid = false;
+        private final Paint gridPaint = new Paint();
+        private final Paint rulerTickPaint = new Paint();
+        private final Paint rulerTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
         // 橡皮擦相关
         private List<String> erasedStrokeIds = new ArrayList<>();
 
@@ -916,6 +1062,12 @@ public class NativePDFView extends FrameLayout {
             if (pdfCurrentPage >= 0 && pdfCurrentPage < pageStrokes.size() && pageStrokes.size() > 0) {
                 List<StrokeData> strokes = pageStrokes.get(pdfCurrentPage);
 
+                // 覆盖层：独立于笔迹绘制，且在任何分支下都跟随同一次变换，
+                // 因此即使笔迹绘制抛异常走进降级分支，标尺/网格也不会错位或消失。
+                if (overlayShowRuler || overlayShowGrid) {
+                    drawPageOverlays(canvas);
+                }
+
                 canvas.save();
 
                 try {
@@ -928,11 +1080,7 @@ public class NativePDFView extends FrameLayout {
 
                     // ✅ 计算当前页面在整个PDF文档中的偏移量
                     // 考虑前面所有页面的高度和页面间距
-                    float pageOffsetY = 0;
-                    for (int i = 0; i < pdfCurrentPage; i++) {
-                        pageOffsetY += pdfView.getPageSize(i).getHeight() * realTimeZoom;
-                        pageOffsetY += 10 * realTimeZoom; // 页面间距 (spacing = 10)
-                    }
+                    float pageOffsetY = computePageOffsetY(pdfCurrentPage) * realTimeZoom;
 
                     // ✅ 应用变换：全局偏移 + 页面偏移 + 缩放
                     canvas.translate(currentXOffset, currentYOffset + pageOffsetY);
@@ -980,15 +1128,7 @@ public class NativePDFView extends FrameLayout {
                     float fallbackYOffset = pdfView.getCurrentYOffset();
 
                     // 计算页面偏移
-                    float pageOffsetY = 0;
-                    try {
-                        for (int i = 0; i < pdfCurrentPage; i++) {
-                            pageOffsetY += pdfView.getPageSize(i).getHeight() * fallbackZoom;
-                            pageOffsetY += 10 * fallbackZoom;
-                        }
-                    } catch (Exception ex) {
-                        Log.e(TAG, "计算页面偏移失败", ex);
-                    }
+                    float pageOffsetY = computePageOffsetY(pdfCurrentPage) * fallbackZoom;
 
                     canvas.translate(fallbackXOffset, fallbackYOffset + pageOffsetY);
                     canvas.scale(fallbackZoom, fallbackZoom);
@@ -1006,6 +1146,146 @@ public class NativePDFView extends FrameLayout {
                 if (Math.random() < 0.01) { // 1%概率打印
                     Log.w(TAG, String.format("无法绘制笔迹 - 页面:%d, 总页面:%d, 笔迹列表大小:%d",
                         pdfCurrentPage, pdfTotalPages, pageStrokes.size()));
+                }
+            }
+        }
+
+        /**
+         * 同步工具栏下发的覆盖层开关。
+         *
+         * 旗标没变就直接返回：setToolConfig 在调色、调粗细时也会被调用，
+         * 每次都 invalidate 会让手写层在笔迹结束时多刷一帧，顿挫感很明显。
+         * 关闭时（两个都是 false）onDraw 的覆盖层分支整体跳过并重绘，
+         * 上一帧的网格/标尺随之被透明背景清掉，不会留残影。
+         */
+        public void setOverlayVisibility(boolean ruler, boolean grid) {
+            if (overlayShowRuler == ruler && overlayShowGrid == grid) {
+                return;
+            }
+            overlayShowRuler = ruler;
+            overlayShowGrid = grid;
+            Log.d(TAG, String.format("覆盖层开关: 标尺=%b, 网格=%b", ruler, grid));
+            invalidate();
+        }
+
+        /**
+         * 逐页绘制标尺/网格。
+         *
+         * 为什么按页而不是整屏：PDF 是连续滚动文档，视图上同时可见多页，
+         * 只画当前页会让相邻页与页间距出现没有覆盖层的空白带。
+         * 每页各自 save/translate/scale，刻度原点回到该页左上角，
+         * 与分页笔记「每页独立标尺」的观感一致。
+         */
+        private void drawPageOverlays(Canvas canvas) {
+            float zoom = pdfView.getZoom();
+            // 缩放钳制在 onDraw 回调里是延迟执行的，中间可能短暂出现 0 或负值；
+            // 这里直接放弃这一帧，避免 scale(0) 把画布压成不可逆的退化矩阵
+            if (zoom <= 0.01f) {
+                return;
+            }
+
+            float currentXOffset = pdfView.getCurrentXOffset();
+            float currentYOffset = pdfView.getCurrentYOffset();
+            float viewHeight = getHeight();
+
+            int pageCount = Math.max(pdfTotalPages, pageStrokes.size());
+            for (int i = 0; i < pageCount; i++) {
+                float pageWidth = pageWidthOf(i);
+                float pageHeight = pageHeightOf(i);
+                if (pageWidth <= 0 || pageHeight <= 0) {
+                    continue;
+                }
+
+                // 与手写层 onDraw / screenToPDFCoords 完全相同的换算：
+                // （文档坐标 × zoom + 全局偏移）才是屏幕坐标
+                float documentTop = computePageOffsetY(i);
+                float screenTop = documentTop * zoom + currentYOffset;
+                float screenBottom = screenTop + pageHeight * zoom;
+
+                // 屏幕外的页直接跳过：放大后一屏能滚过很多页，
+                // 不裁剪会让每帧白画几十页的刻度线
+                if (screenBottom < 0 || screenTop > viewHeight) {
+                    continue;
+                }
+
+                canvas.save();
+                canvas.translate(currentXOffset, screenTop);
+                canvas.scale(zoom, zoom);
+                drawOverlayForPage(canvas, pageWidth, pageHeight, zoom);
+                canvas.restore();
+            }
+        }
+
+        /** 在「页面坐标」画布上绘制单页的网格与标尺。 */
+        private void drawOverlayForPage(Canvas canvas, float pageWidth, float pageHeight, float zoom) {
+            if (overlayShowGrid) {
+                drawGridOverlay(canvas, pageWidth, pageHeight);
+            }
+            if (overlayShowRuler) {
+                drawRulerOverlay(canvas, pageWidth, pageHeight, zoom);
+            }
+        }
+
+        /**
+         * 网格覆盖层：与分页笔记同口径（20px 细网格、低透明度），
+         * 但坐标落在页面坐标系里，所以会随 PDF 缩放/滚动一起走。
+         */
+        private void drawGridOverlay(Canvas canvas, float pageWidth, float pageHeight) {
+            gridPaint.setColor(Color.parseColor("#B0BEC5"));
+            gridPaint.setStrokeWidth(1);
+            gridPaint.setAlpha(90);
+            gridPaint.setStyle(Paint.Style.STROKE);
+
+            float size = 20;
+            for (float x = 0; x <= pageWidth; x += size) {
+                canvas.drawLine(x, 0, x, pageHeight, gridPaint);
+            }
+            for (float y = 0; y <= pageHeight; y += size) {
+                canvas.drawLine(0, y, pageWidth, y, gridPaint);
+            }
+        }
+
+        /**
+         * 标尺覆盖层：页面顶部/左侧刻度，主刻度每 50px 带数字。
+         *
+         * 画布已经被 scale(zoom) 放大，刻度线的 1px 描边会随之变粗，
+         * 因此把描边与字号都按 1/zoom 反算，让标尺在任意缩放级别下
+         * 都保持「屏幕上的固定粗细」，不会放大成一堆粗黑块。
+         */
+        private void drawRulerOverlay(Canvas canvas, float pageWidth, float pageHeight, float zoom) {
+            float inverseZoom = 1f / Math.max(zoom, 0.01f);
+
+            rulerTickPaint.setColor(Color.parseColor("#607D8B"));
+            rulerTickPaint.setStrokeWidth(inverseZoom);
+            rulerTickPaint.setAlpha(160);
+            rulerTickPaint.setStyle(Paint.Style.STROKE);
+
+            rulerTextPaint.setColor(Color.parseColor("#455A64"));
+            rulerTextPaint.setTextSize(9 * inverseZoom);
+            rulerTextPaint.setAlpha(180);
+
+            float minor = 10;
+            float major = 50;
+            float minorLen = 6 * inverseZoom;
+            float majorLen = 12 * inverseZoom;
+
+            // 顶部标尺：短刻度 + 每 50px 主刻度与数值
+            for (float x = 0; x <= pageWidth; x += minor) {
+                boolean isMajor = (Math.round(x) % (int) major) == 0;
+                float len = isMajor ? majorLen : minorLen;
+                canvas.drawLine(x, 0, x, len, rulerTickPaint);
+                if (isMajor) {
+                    canvas.drawText(String.valueOf((int) x), x + 2 * inverseZoom, len + 9 * inverseZoom, rulerTextPaint);
+                }
+            }
+
+            // 左侧标尺：短刻度 + 每 50px 主刻度与数值
+            for (float y = 0; y <= pageHeight; y += minor) {
+                boolean isMajor = (Math.round(y) % (int) major) == 0;
+                float len = isMajor ? majorLen : minorLen;
+                canvas.drawLine(0, y, len, y, rulerTickPaint);
+                if (isMajor) {
+                    canvas.drawText(String.valueOf((int) y), len + 2 * inverseZoom, y + 9 * inverseZoom, rulerTextPaint);
                 }
             }
         }
@@ -1574,12 +1854,8 @@ public class NativePDFView extends FrameLayout {
                 float pageHeight = pdfView.getPageSize(pdfCurrentPage).getHeight();
 
                 // ✅ 计算当前页面在整个PDF文档中的偏移量
-                // 考虑前面所有页面的高度和页面间距
-                float pageOffsetY = 0;
-                for (int i = 0; i < pdfCurrentPage; i++) {
-                    pageOffsetY += pdfView.getPageSize(i).getHeight() * realTimeZoom;
-                    pageOffsetY += 10 * realTimeZoom; // 页面间距 (spacing = 10)
-                }
+                // 与 onDraw / 覆盖层共用同一份缓存，避免三处各算一遍还算出不同结果
+                float pageOffsetY = computePageOffsetY(pdfCurrentPage) * realTimeZoom;
 
                 // ✅ 逆向应用变换（与onDraw中的 translate + scale 对应）
                 // 先减去全局偏移量，再减去页面偏移，最后除以缩放

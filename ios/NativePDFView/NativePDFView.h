@@ -50,5 +50,25 @@
 // ✅ 导出注释并发送事件
 - (void)emitExportCompleteWithOutputPath:(NSString *)outputPath;
 
+// MARK: - 命令接口
+//
+// 这些方法此前只在 .m 里实现（clearCurrentPage/addTextAnnotation:/lassoSelect:/
+// lassoComplete:/addImage: 甚至完全没实现），.h 里没有声明，于是
+// NativePDFViewManager 调用它们时编译器直接报
+// "no visible @interface for 'NativePDFView' declares the selector"。
+// 补上声明只是让既有命令通道能编译；真正的行为在 .m 里。
+- (void)undo;
+- (void)redo;
+- (void)clear:(NSString *)clearType;
+- (void)clearCurrentPage;
+- (void)addTextAnnotation:(NSString *)text;
+- (void)lassoSelect:(NSString *)selectionData;
+- (void)lassoComplete:(NSString *)completionData;
+- (void)addImage:(NSString *)imageUri;
+
+// OCR（实现在 NativePDFView.m 的 OCR category 里；
+// Manager 的 recognizeTextInRegion Promise 接口要调用它）
+- (void)recognizeTextInRect:(CGRect)rect completion:(void (^)(NSString *text, NSError *error))completion;
+
 @end
 
