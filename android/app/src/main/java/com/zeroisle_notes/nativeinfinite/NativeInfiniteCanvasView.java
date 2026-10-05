@@ -255,6 +255,69 @@ public class NativeInfiniteCanvasView extends View {
         }
 
         canvas.restore();
+
+        // 工具栏覆盖层（屏幕坐标，不随视口平移/缩放移动）
+        if (showGrid) {
+            drawToolbarGridOverlay(canvas);
+        }
+        if (showRuler) {
+            drawToolbarRulerOverlay(canvas);
+        }
+    }
+
+    /** 工具栏「网格」覆盖层：固定屏幕 40px 网格。 */
+    private void drawToolbarGridOverlay(Canvas canvas) {
+        Paint paint = new Paint();
+        paint.setColor(Color.parseColor("#B0BEC5"));
+        paint.setStrokeWidth(1);
+        paint.setAlpha(70);
+
+        float width = getWidth();
+        float height = getHeight();
+        float size = 40;
+
+        for (float x = 0; x <= width; x += size) {
+            canvas.drawLine(x, 0, x, height, paint);
+        }
+        for (float y = 0; y <= height; y += size) {
+            canvas.drawLine(0, y, width, y, paint);
+        }
+    }
+
+    /** 工具栏「标尺」覆盖层：顶部/左侧刻度尺。 */
+    private void drawToolbarRulerOverlay(Canvas canvas) {
+        Paint tickPaint = new Paint();
+        tickPaint.setColor(Color.parseColor("#607D8B"));
+        tickPaint.setStrokeWidth(1);
+        tickPaint.setAlpha(160);
+
+        Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        textPaint.setColor(Color.parseColor("#455A64"));
+        textPaint.setTextSize(9);
+        textPaint.setAlpha(180);
+
+        float width = getWidth();
+        float height = getHeight();
+        float minor = 10;
+        float major = 50;
+
+        for (float x = 0; x <= width; x += minor) {
+            boolean isMajor = (Math.round(x) % (int) major) == 0;
+            float len = isMajor ? 12 : 6;
+            canvas.drawLine(x, 0, x, len, tickPaint);
+            if (isMajor) {
+                canvas.drawText(String.valueOf((int) x), x + 2, len + 9, textPaint);
+            }
+        }
+
+        for (float y = 0; y <= height; y += minor) {
+            boolean isMajor = (Math.round(y) % (int) major) == 0;
+            float len = isMajor ? 12 : 6;
+            canvas.drawLine(0, y, len, y, tickPaint);
+            if (isMajor) {
+                canvas.drawText(String.valueOf((int) y), len + 2, y + 9, textPaint);
+            }
+        }
     }
 
     @Override
@@ -282,11 +345,11 @@ public class NativeInfiniteCanvasView extends View {
         }
 
         // 单指操作
-        if (isStylusMode) {
+        if (shouldDrawWithTouch(isStylusMode) && !"gesture".equals(interactionMode)) {
             if (event.getPointerCount() > 0) {
                 lastPressure = event.getPressure(0);
             }
-            // 手写笔：绘制
+            // 手写笔（或允许的手指书写）：绘制
             PointF worldPoint = screenToWorld(x, y);
             switch (event.getAction()) {
                 case MotionEvent.ACTION_DOWN:
@@ -399,10 +462,14 @@ public class NativeInfiniteCanvasView extends View {
         currentPaint.setStrokeJoin(Paint.Join.ROUND);
         currentPaint.setAntiAlias(true);
 
+        // 透明度由 setToolConfig 下发的 opacity 驱动，工具只决定相对衰减
+        int opacityAlpha = Math.round(Math.max(0f, Math.min(1f, currentOpacity)) * 255f);
         if ("highlighter".equals(currentTool)) {
-            currentPaint.setAlpha(128);
+            currentPaint.setAlpha(Math.round(opacityAlpha * 0.5f));
         } else if ("pencil".equals(currentTool)) {
-            currentPaint.setAlpha(179); // 70% opacity
+            currentPaint.setAlpha(Math.round(opacityAlpha * 0.7f));
+        } else {
+            currentPaint.setAlpha(opacityAlpha);
         }
 
         currentStrokePoints.clear();
@@ -575,6 +642,16 @@ public class NativeInfiniteCanvasView extends View {
             lassoPaint.setColor(Color.GREEN);
             lassoPaint.setAlpha(51); // 20% alpha
 
+            // 把选中的笔迹 id 上报给 JS
+            WritableMap event = Arguments.createMap();
+            com.facebook.react.bridge.WritableArray ids = Arguments.createArray();
+            for (String id : selectedStrokeIds) {
+                ids.pushString(id);
+            }
+            event.putArray("strokeIds", ids);
+            event.putInt("count", selectedStrokeIds.size());
+            sendEvent("onStrokesSelected", event);
+
             // 3秒后清除选择
             postDelayed(() -> {
                 lassoPath = null;
@@ -727,8 +804,94 @@ public class NativeInfiniteCanvasView extends View {
                 }
             }
             currentPath.close();
+        } else if ("ellipse".equals(currentShape)) {
+            android.graphics.RectF rect = new android.graphics.RectF(
+                Math.min(shapeStartPoint.x, worldPoint.x), Math.min(shapeStartPoint.y, worldPoint.y),
+                Math.max(shapeStartPoint.x, worldPoint.x), Math.max(shapeStartPoint.y, worldPoint.y));
+            currentPath.addOval(rect, Path.Direction.CW);
+        } else if ("parallelogram".equals(currentShape)) {
+            float left = Math.min(shapeStartPoint.x, worldPoint.x);
+            float right = Math.max(shapeStartPoint.x, worldPoint.x);
+            float top = Math.min(shapeStartPoint.y, worldPoint.y);
+            float bottom = Math.max(shapeStartPoint.y, worldPoint.y);
+            float skew = (right - left) * 0.25f;
+            currentPath.moveTo(left + skew, top);
+            currentPath.lineTo(right, top);
+            currentPath.lineTo(right - skew, bottom);
+            currentPath.lineTo(left, bottom);
+            currentPath.close();
+        } else if ("polygon".equals(currentShape) || "pentagon".equals(currentShape)
+                   || "hexagon".equals(currentShape)) {
+            int sides = "pentagon".equals(currentShape) ? 5
+                      : "hexagon".equals(currentShape) ? 6 : 6;
+            float cx = (shapeStartPoint.x + worldPoint.x) / 2f;
+            float cy = (shapeStartPoint.y + worldPoint.y) / 2f;
+            float rx = Math.abs(worldPoint.x - shapeStartPoint.x) / 2f;
+            float ry = Math.abs(worldPoint.y - shapeStartPoint.y) / 2f;
+            for (int i = 0; i < sides; i++) {
+                double a = i * 2 * Math.PI / sides - Math.PI / 2;
+                float px = cx + rx * (float) Math.cos(a);
+                float py = cy + ry * (float) Math.sin(a);
+                if (i == 0) {
+                    currentPath.moveTo(px, py);
+                } else {
+                    currentPath.lineTo(px, py);
+                }
+            }
+            currentPath.close();
+        } else if ("arc".equals(currentShape)) {
+            android.graphics.RectF rect = new android.graphics.RectF(
+                Math.min(shapeStartPoint.x, worldPoint.x), Math.min(shapeStartPoint.y, worldPoint.y),
+                Math.max(shapeStartPoint.x, worldPoint.x), Math.max(shapeStartPoint.y, worldPoint.y));
+            currentPath.addArc(rect, 180f, 180f);
+        } else if ("curve".equals(currentShape)) {
+            float midX = (shapeStartPoint.x + worldPoint.x) / 2f;
+            currentPath.moveTo(shapeStartPoint.x, shapeStartPoint.y);
+            currentPath.cubicTo(midX, shapeStartPoint.y - Math.abs(worldPoint.y - shapeStartPoint.y) * 0.6f,
+                                midX, worldPoint.y + Math.abs(worldPoint.y - shapeStartPoint.y) * 0.6f,
+                                worldPoint.x, worldPoint.y);
+        } else if ("rounded_rect".equals(currentShape)) {
+            android.graphics.RectF rect = new android.graphics.RectF(
+                Math.min(shapeStartPoint.x, worldPoint.x), Math.min(shapeStartPoint.y, worldPoint.y),
+                Math.max(shapeStartPoint.x, worldPoint.x), Math.max(shapeStartPoint.y, worldPoint.y));
+            currentPath.addRoundRect(rect, 16f, 16f, Path.Direction.CW);
+        } else if ("double_arrow".equals(currentShape)) {
+            currentPath.moveTo(shapeStartPoint.x, shapeStartPoint.y);
+            currentPath.lineTo(worldPoint.x, worldPoint.y);
+            float arrowLength = 15;
+            float arrowAngle = (float) (Math.PI / 6);
+            double angle = Math.atan2(worldPoint.y - shapeStartPoint.y, worldPoint.x - shapeStartPoint.x);
+            currentPath.moveTo(worldPoint.x, worldPoint.y);
+            currentPath.lineTo((float) (worldPoint.x - arrowLength * Math.cos(angle - arrowAngle)),
+                               (float) (worldPoint.y - arrowLength * Math.sin(angle - arrowAngle)));
+            currentPath.moveTo(worldPoint.x, worldPoint.y);
+            currentPath.lineTo((float) (worldPoint.x - arrowLength * Math.cos(angle + arrowAngle)),
+                               (float) (worldPoint.y - arrowLength * Math.sin(angle + arrowAngle)));
+            currentPath.moveTo(shapeStartPoint.x, shapeStartPoint.y);
+            currentPath.lineTo((float) (shapeStartPoint.x + arrowLength * Math.cos(angle - arrowAngle)),
+                               (float) (shapeStartPoint.y + arrowLength * Math.sin(angle - arrowAngle)));
+            currentPath.moveTo(shapeStartPoint.x, shapeStartPoint.y);
+            currentPath.lineTo((float) (shapeStartPoint.x + arrowLength * Math.cos(angle + arrowAngle)),
+                               (float) (shapeStartPoint.y + arrowLength * Math.sin(angle + arrowAngle)));
+        } else if ("heart".equals(currentShape)) {
+            float left = Math.min(shapeStartPoint.x, worldPoint.x);
+            float right = Math.max(shapeStartPoint.x, worldPoint.x);
+            float top = Math.min(shapeStartPoint.y, worldPoint.y);
+            float bottom = Math.max(shapeStartPoint.y, worldPoint.y);
+            float w = right - left;
+            float h = bottom - top;
+            currentPath.moveTo(left + w / 2f, bottom);
+            currentPath.cubicTo(left - w * 0.1f, top + h * 0.55f,
+                                left + w * 0.22f, top - h * 0.12f,
+                                left + w / 2f, top + h * 0.28f);
+            currentPath.cubicTo(right - w * 0.22f, top - h * 0.12f,
+                                right + w * 0.1f, top + h * 0.55f,
+                                left + w / 2f, bottom);
+            currentPath.close();
         } else {
-            // 默认直线
+            // 未知形状：明确告警后再回落成直线（此前是静默回落，用户选了画不出来还查不到原因）
+            android.util.Log.w("NativeInfiniteCanvasView",
+                "未实现的形状 " + currentShape + "，已回落到直线；请检查 JS 侧形状清单与本方法的分支是否同步");
             currentPath.moveTo(shapeStartPoint.x, shapeStartPoint.y);
             currentPath.lineTo(worldPoint.x, worldPoint.y);
         }
@@ -820,6 +983,7 @@ public class NativeInfiniteCanvasView extends View {
             event.putString("strokeId", UUID.randomUUID().toString());
             event.putString("tool", currentTool);
             sendEvent("onStrokeCommitted", event);
+            sendHistoryStateChangeEvent();
 
             currentPath = null;
             currentPaint = null;
@@ -899,6 +1063,10 @@ public class NativeInfiniteCanvasView extends View {
     private int recognitionDebounceMs = 180;
     private boolean palmRejectionEnabled = true;
     private String fingerMode = "gesture_only";
+    private String interactionMode = "mixed";
+    // 覆盖层：标尺 / 网格（工具栏下发；此前只改 JS 本地 state，原生完全不知情）
+    private boolean showRuler = false;
+    private boolean showGrid = false;
     private long lastStrokeTimestampMs = 0L;
     private float filteredStrokeVelocity = 0.0f;
 
@@ -1177,7 +1345,88 @@ public class NativeInfiniteCanvasView extends View {
 
     public void setToolConfig(String configJson) {
         Log.d("NativeInfiniteCanvas", "Tool config received: " + configJson);
-        // Tool configuration can be parsed and applied here if needed
+        if (configJson == null || configJson.isEmpty()) {
+            return;
+        }
+        try {
+            org.json.JSONObject config = new org.json.JSONObject(configJson);
+            if (config.has("penProfile")) {
+                this.currentPenProfile = config.optString("penProfile", this.currentPenProfile);
+            }
+            if (config.has("pressureSensitivity")) {
+                this.pressureSensitivity = (float) clamp01(config.optDouble("pressureSensitivity", this.pressureSensitivity));
+            }
+            if (config.has("velocitySensitivity")) {
+                this.velocitySensitivity = (float) clamp01(config.optDouble("velocitySensitivity", this.velocitySensitivity));
+            }
+            if (config.has("taperIn")) {
+                this.taperIn = (float) clamp01(config.optDouble("taperIn", this.taperIn));
+            }
+            if (config.has("taperOut")) {
+                this.taperOut = (float) clamp01(config.optDouble("taperOut", this.taperOut));
+            }
+            if (config.has("smoothing")) {
+                this.smoothing = (float) clamp01(config.optDouble("smoothing", this.smoothing));
+            }
+            if (config.has("opacity")) {
+                this.currentOpacity = (float) clamp01(config.optDouble("opacity", this.currentOpacity));
+            }
+            if (config.has("recognitionEnabled")) {
+                this.recognitionEnabled = config.optBoolean("recognitionEnabled", this.recognitionEnabled);
+            }
+            if (config.has("recognitionDebounceMs")) {
+                this.recognitionDebounceMs = Math.max(0, config.optInt("recognitionDebounceMs", this.recognitionDebounceMs));
+            }
+            if (config.has("palmRejectionEnabled")) {
+                this.palmRejectionEnabled = config.optBoolean("palmRejectionEnabled", this.palmRejectionEnabled);
+            }
+            if (config.has("fingerMode")) {
+                this.fingerMode = config.optString("fingerMode", this.fingerMode);
+            }
+            if (config.has("interactionMode")) {
+                this.interactionMode = config.optString("interactionMode", this.interactionMode);
+            }
+            if (config.has("showRuler")) {
+                this.showRuler = config.optBoolean("showRuler", this.showRuler);
+            }
+            if (config.has("showGrid")) {
+                this.showGrid = config.optBoolean("showGrid", this.showGrid);
+            }
+            invalidate();
+        } catch (org.json.JSONException ex) {
+            Log.w("NativeInfiniteCanvas", "setToolConfig 解析失败: " + ex.getMessage());
+        }
+    }
+
+    /** 交互模式：ink 只画、gesture 只手势、mixed 二者并存。 */
+    public void setInteractionMode(String mode) {
+        if (mode == null || mode.isEmpty()) {
+            return;
+        }
+        this.interactionMode = mode;
+        Log.d("NativeInfiniteCanvas", "交互模式更新: " + mode);
+    }
+
+    private static double clamp01(double value) {
+        if (Double.isNaN(value)) {
+            return 0.0;
+        }
+        return Math.max(0.0, Math.min(1.0, value));
+    }
+
+    /**
+     * 是否用当前触点绘制：
+     *  - 防误触关闭且手指模式允许时，手指也能书写；
+     *  - 防误触开启时只有手写笔能画，手指保留给平移/缩放。
+     */
+    private boolean shouldDrawWithTouch(boolean isStylus) {
+        if (isStylus) {
+            return true;
+        }
+        if (!palmRejectionEnabled) {
+            return "draw".equals(fingerMode) || "draw_with_finger".equals(fingerMode) || "any".equals(fingerMode);
+        }
+        return false;
     }
 
     public void setViewport(float x, float y, float scale) {
@@ -1212,6 +1461,7 @@ public class NativeInfiniteCanvasView extends View {
         } else {
             Log.d("NativeInfiniteCanvasView", "没有可撤销的操作");
         }
+        sendHistoryStateChangeEvent();
     }
 
     public void redo() {
@@ -1238,9 +1488,15 @@ public class NativeInfiniteCanvasView extends View {
         } else {
             Log.d("NativeInfiniteCanvasView", "没有可重做的操作");
         }
+        sendHistoryStateChangeEvent();
     }
 
     public void clear() {
+        clear("current_view");
+    }
+
+    public void clear(String scope) {
+        String normalized = (scope == null || scope.isEmpty()) ? "current_view" : scope;
         // 保存当前笔迹以便撤销
         List<StrokeData> clearedStrokes = new ArrayList<>(strokes);
         strokes.clear();
@@ -1249,7 +1505,16 @@ public class NativeInfiniteCanvasView extends View {
         addToUndoStack(new HistoryAction(HistoryAction.Type.CLEAR, clearedStrokes));
 
         invalidate();
-        Log.d("NativeInfiniteCanvasView", "已清除所有笔迹");
+        Log.d("NativeInfiniteCanvasView", "已清除笔迹, scope=" + normalized);
+        sendHistoryStateChangeEvent();
+    }
+
+    /** 通知 JS 撤销/重做是否可用（此前无限画布从不发这个事件）。 */
+    private void sendHistoryStateChangeEvent() {
+        WritableMap event = Arguments.createMap();
+        event.putBoolean("canUndo", !undoStack.isEmpty());
+        event.putBoolean("canRedo", !redoStack.isEmpty());
+        sendEvent("onHistoryStateChange", event);
     }
 
     private void addToUndoStack(HistoryAction action) {

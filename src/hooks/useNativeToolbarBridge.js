@@ -502,6 +502,39 @@ export const useNativeToolbarBridge = (nativeViewRef, viewType, options = {}) =>
     dispatchCommand(nativeViewRef, viewType, 'lassoComplete', [JSON.stringify(selectedItems)]);
   }, [nativeViewRef, viewType]);
 
+  // ---- 选中笔迹的操作 ----
+  // 一律把 strokeIds 数组序列化成 JSON 字符串下发（原生侧按此解析）：
+  // 这样即使原生的 3 秒自动清除选中态先触发，用户刚才那次操作仍作用在他看到的笔迹上。
+  const serializeStrokeIds = (strokeIds) => {
+    if (Array.isArray(strokeIds)) {
+      return JSON.stringify(strokeIds.filter((id) => typeof id === 'string' && id));
+    }
+    if (typeof strokeIds === 'string' && strokeIds) {
+      return strokeIds;
+    }
+    return '[]';
+  };
+
+  const handleDeleteSelectedStrokes = useCallback((strokeIds) => {
+    dispatchCommand(nativeViewRef, viewType, 'deleteSelectedStrokes', [serializeStrokeIds(strokeIds)]);
+  }, [nativeViewRef, viewType]);
+
+  const handleDuplicateSelectedStrokes = useCallback((strokeIds, offset) => {
+    const dx = Number.isFinite(Number(offset?.dx)) ? Number(offset.dx) : 16;
+    const dy = Number.isFinite(Number(offset?.dy)) ? Number(offset.dy) : 16;
+    dispatchCommand(nativeViewRef, viewType, 'duplicateSelectedStrokes', [serializeStrokeIds(strokeIds), dx, dy]);
+  }, [nativeViewRef, viewType]);
+
+  const handleMoveSelectedStrokes = useCallback((strokeIds, offset) => {
+    const dx = Number.isFinite(Number(offset?.dx)) ? Number(offset.dx) : 0;
+    const dy = Number.isFinite(Number(offset?.dy)) ? Number(offset.dy) : 0;
+    dispatchCommand(nativeViewRef, viewType, 'moveSelectedStrokes', [serializeStrokeIds(strokeIds), dx, dy]);
+  }, [nativeViewRef, viewType]);
+
+  const handleClearStrokeSelection = useCallback(() => {
+    dispatchCommand(nativeViewRef, viewType, 'clearStrokeSelection', []);
+  }, [nativeViewRef, viewType]);
+
   const requestRecognition = useCallback(async (request = {}) => {
     if (!currentToolConfigRef.current.recognitionEnabled) {
       return '';
@@ -650,6 +683,11 @@ export const useNativeToolbarBridge = (nativeViewRef, viewType, options = {}) =>
     onImageUpload: handleImageUpload,
     onLassoSelect: handleLassoSelect,
     onLassoComplete: handleLassoComplete,
+    // 选中笔迹的操作：工具栏据此把「删除/复制/完成」从「暂不支持」变成真实功能。
+    onDeleteSelectedStrokes: handleDeleteSelectedStrokes,
+    onDuplicateSelectedStrokes: handleDuplicateSelectedStrokes,
+    onMoveSelectedStrokes: handleMoveSelectedStrokes,
+    onClearStrokeSelection: handleClearStrokeSelection,
     initialTool: currentToolConfig.tool,
     initialColor: currentToolConfig.color,
     initialStrokeWidth: currentToolConfig.size,
@@ -679,10 +717,14 @@ export const useNativeToolbarBridge = (nativeViewRef, viewType, options = {}) =>
     handleBookmarkList,
     handleBookmarkNavigate,
     handleClear,
+    handleClearStrokeSelection,
     handleColorChange,
+    handleDeleteSelectedStrokes,
+    handleDuplicateSelectedStrokes,
     handleImageUpload,
     handleLassoComplete,
     handleLassoSelect,
+    handleMoveSelectedStrokes,
     handleRedo,
     handleStrokeWidthChange,
     handleTextAdd,

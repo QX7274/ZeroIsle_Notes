@@ -9,7 +9,7 @@
  * - 压感与预测支持
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -70,6 +70,9 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastStrokeId, setLastStrokeId] = useState(null);
+  // 撤销/重做可用状态：此前分页画布从不接收原生历史事件，导致撤销按钮永远是灰的
+  const [toolbarHistoryState, setToolbarHistoryState] = useState({ canUndo: false, canRedo: false });
+  const [selectedStrokeIds, setSelectedStrokeIds] = useState([]);
 
   // 区域选择相关状态
   const [isSelectingRegion, setIsSelectingRegion] = useState(false);
@@ -89,6 +92,8 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
   const toolbarPropsBase = useNativeToolbarBridge(noteViewRef, 'paged', {
     currentPage,
     totalPages,
+    historyState: toolbarHistoryState,
+    onHistoryStateChange: setToolbarHistoryState,
   });
 
   const onRequestRegionOCR = useCallback(async () => {
@@ -119,14 +124,54 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
     }
   }, [lastStrokeId, toolbarPropsBase]);
 
-  // 确保toolbarProps有默认值，防止undefined错误
-  const safeToolbarProps = {
+  /**
+   * 选中笔迹的操作（删除/复制/完成）。
+   *
+   * 此前这里只有 selectedStrokeIds，却没有把它接到任何命令通道上，
+   * 于是工具栏的「删除/复制」只能显示成「暂不支持」——
+   * 原生其实一直会上报选中结果，缺的只是这条操作回路。
+   * 现在把它接到 bridge 暴露的真实派发器上。
+   */
+  const onSelectedStrokesAction = useCallback((actionId, strokeIds) => {
+    const ids = Array.isArray(strokeIds) ? strokeIds : [];
+    if (ids.length === 0) {
+      return;
+    }
+    if (actionId === 'delete') {
+      toolbarPropsBase.onDeleteSelectedStrokes?.(ids);
+      setSelectedStrokeIds([]);
+      return;
+    }
+    if (actionId === 'duplicate') {
+      toolbarPropsBase.onDuplicateSelectedStrokes?.(ids);
+      return;
+    }
+    if (actionId === 'done') {
+      toolbarPropsBase.onClearStrokeSelection?.();
+      setSelectedStrokeIds([]);
+    }
+  }, [toolbarPropsBase]);
+
+  // 工具栏属性单一来源：useNativeToolbarBridge 恒返回对象，region/handwriting 回调
+  // 直接并入同一对象（RISK-NAV-002：不再保留恒被 `||` 短路掉的 safeToolbarProps 死代码）。
+  const toolbarProps = useMemo(() => ({
     ...(toolbarPropsBase || {}),
     currentPage,
     totalPages,
+    // 套索选中的笔迹（原生 onStrokesSelected 上报），供工具栏后续操作使用
+    selectedStrokeIds,
+    onSelectedStrokesAction,
     onRequestRegionOCR,
     onRequestStrokeRecognition,
-  };
+  }), [
+    toolbarPropsBase,
+    currentPage,
+    totalPages,
+    selectedStrokeIds,
+    onSelectedStrokesAction,
+    onRequestRegionOCR,
+    onRequestStrokeRecognition,
+  ]);
 
   const zoomHideTimerRef = useRef(null);
   const handleRegionTouchStart = useCallback((e) => {
@@ -554,6 +599,10 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
 
     setLastStrokeId(strokeData.strokeId);
     setHasUnsavedChanges(true);
+    // 落笔即可撤销；新笔迹会清空重做栈
+    setToolbarHistoryState((prev) => (
+      prev.canUndo && !prev.canRedo ? prev : { canUndo: true, canRedo: false }
+    ));
 
     scheduleExportNote('stroke-committed', { immediate: false, minIntervalMs: 1200 });
 
@@ -566,6 +615,25 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
       documentPage: currentPage,
     });
   }, [scheduleExportNote, toolbarPropsBase, currentPage]);
+
+  // 原生事件驱动：同步撤销/重做可用状态
+  const handleHistoryStateChange = useCallback((event) => {
+    const state = event?.nativeEvent || event || {};
+    setToolbarHistoryState((prev) => {
+      const canUndo = typeof state.canUndo === 'boolean' ? state.canUndo : prev.canUndo;
+      const canRedo = typeof state.canRedo === 'boolean' ? state.canRedo : prev.canRedo;
+      if (canUndo === prev.canUndo && canRedo === prev.canRedo) {
+        return prev;
+      }
+      return { canUndo, canRedo };
+    });
+  }, []);
+
+  // 套索选中笔迹：交给工具栏/后续操作使用
+  const handleStrokesSelected = useCallback((event) => {
+    const payload = event?.nativeEvent || {};
+    setSelectedStrokeIds(Array.isArray(payload.strokeIds) ? payload.strokeIds : []);
+  }, []);
 
   const insertRecognizedText = useCallback((text) => {
     // 将识别文本插入到笔记中（命令ID: 2）
@@ -866,8 +934,10 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
         }
         title={title || '分页笔记（原生）'}
         showExternalToolbar={true}
+        toolbarMode="paged"
         toolbarProps={{
-          ...(toolbarPropsBase || safeToolbarProps),
+          ...toolbarProps,
+          mode: 'paged',
           currentPage: currentPage,
           performRegionOCR: async (rect) => {
             try {
@@ -936,9 +1006,9 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
           pointerEvents="auto"
           noteId={noteId}
           styleConfig={{ background: noteStyle || 'blank' }}
-          currentTool={safeToolbarProps.currentTool}
-          currentColor={safeToolbarProps.currentColor}
-          currentStrokeWidth={safeToolbarProps.currentStrokeWidth}
+          currentTool={toolbarProps.currentTool}
+          currentColor={toolbarProps.currentColor}
+          currentStrokeWidth={toolbarProps.currentStrokeWidth}
           onReady={handleReady}
           onStrokeCommitted={handleStrokeCommitted}
           onPageChange={handlePageChange}
@@ -946,6 +1016,8 @@ const SkiaPagedCanvasScreenNative = ({ route, navigation }) => {
           onZoomChange={handleZoomChange}
           onHandwritingRecognized={handleHandwritingRecognized}
           onExportComplete={handleExportComplete}
+          onHistoryStateChange={handleHistoryStateChange}
+          onStrokesSelected={handleStrokesSelected}
 
 
           onError={(event) => {

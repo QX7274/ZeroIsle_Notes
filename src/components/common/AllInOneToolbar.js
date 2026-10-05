@@ -1468,6 +1468,9 @@ const AllInOneToolbar = ({
     fingerMode,
     palmRejectionEnabled,
     selectedPenType,
+    // fill 进了载荷，就必须进依赖：否则用户拨动「填充」后 useCallback 仍返回旧闭包，
+    // 下发出去的仍是旧的 fill 值（与「不下发」是同一类症状）。
+    shapeFillEnabled,
     showGrid,
     showRuler,
     strokeOpacity,

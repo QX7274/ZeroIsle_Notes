@@ -84,6 +84,12 @@ const LEGACY_ALIASES = Object.freeze({
     setTool: ['setTool', 'setCurrentTool'],
     setColor: ['setColor', 'setCurrentColor'],
     setStrokeWidth: ['setStrokeWidth', 'setCurrentStrokeWidth'],
+    // 选中笔迹的操作。此前原生会上报 onStrokesSelected，但没有任何可操作通道，
+    // 工具栏因此只能把「删除/复制」显示成「暂不支持」。
+    deleteSelectedStrokes: ['deleteSelectedStrokes'],
+    duplicateSelectedStrokes: ['duplicateSelectedStrokes'],
+    moveSelectedStrokes: ['moveSelectedStrokes'],
+    clearStrokeSelection: ['clearStrokeSelection'],
   },
   [SURFACE_TYPES.INFINITE]: {
     setToolConfig: ['setToolConfig'],
