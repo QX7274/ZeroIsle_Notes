@@ -90,6 +90,18 @@ public class NativeInfiniteCanvasViewManager extends SimpleViewManager<NativeInf
             .put("setCurrentStrokeWidth", 9)
             .put("setToolConfig", 10)
             .put("addImage", 15)    // 新增图片上传
+            .put("setInteractionMode", 16) // 交互模式 ink/gesture/mixed
+            // 视口与套索：JS 一直在派发，但 Android 命令表里从来没有这几条，
+            // dispatchCommand 找不到命令号就静默 return false。
+            .put("setViewport", 17)
+            .put("resetViewport", 18)
+            // setPage/addPage：无限画布没有「页」的概念，但 JS 书签跳转路径会发这两个命令。
+            // 显式登记为 no-op，避免「解析不到命令号」与「本来就不适用」两种情况无法区分。
+            .put("setPage", 19)
+            .put("addPage", 20)
+            .put("lassoStart", 21)
+            .put("lassoUpdate", 22)
+            .put("lassoComplete", 23)
             .build();
     }
 
@@ -119,7 +131,11 @@ public class NativeInfiniteCanvasViewManager extends SimpleViewManager<NativeInf
                 root.redo();
                 break;
             case 6: // clear
-                root.clear();
+                if (args != null && args.size() > 0 && args.getType(0) == com.facebook.react.bridge.ReadableType.String) {
+                    root.clear(args.getString(0));
+                } else {
+                    root.clear();
+                }
                 break;
             case 7: // setCurrentTool
                 if (args != null && args.size() > 0) {
@@ -151,6 +167,42 @@ public class NativeInfiniteCanvasViewManager extends SimpleViewManager<NativeInf
                     root.addImage(args.getString(0));
                 }
                 break;
+            case 16: // setInteractionMode
+                if (args != null && args.size() > 0) {
+                    root.setInteractionMode(args.getString(0));
+                }
+                break;
+            case 17: // setViewport(viewportJson) —— JS 传的是 JSON 字符串
+                if (args != null && args.size() > 0) {
+                    root.applyViewportFromJS(args.getString(0));
+                }
+                break;
+            case 18: // resetViewport
+                root.resetViewportFromJS();
+                break;
+            case 19: // setPage（无限画布不适用，显式 no-op 并留日志）
+                if (args != null && args.size() > 0) {
+                    root.setPageNoop(args.getInt(0));
+                }
+                break;
+            case 20: // addPage（同上）
+                root.addPageNoop();
+                break;
+            case 21: // lassoStart
+                if (args != null && args.size() > 0) {
+                    root.lassoStartFromJS(args.getString(0));
+                }
+                break;
+            case 22: // lassoUpdate
+                if (args != null && args.size() > 0) {
+                    root.lassoUpdateFromJS(args.getString(0));
+                }
+                break;
+            case 23: // lassoComplete
+                if (args != null && args.size() > 0) {
+                    root.lassoCompleteFromJS(args.getString(0));
+                }
+                break;
         }
     }
 
@@ -163,6 +215,8 @@ public class NativeInfiniteCanvasViewManager extends SimpleViewManager<NativeInf
             .put("onStrokeCommitted", MapBuilder.of("registrationName", "onStrokeCommitted"))
             .put("onHandwritingRecognized", MapBuilder.of("registrationName", "onHandwritingRecognized"))
             .put("onExportComplete", MapBuilder.of("registrationName", "onExportComplete"))
+            .put("onHistoryStateChange", MapBuilder.of("registrationName", "onHistoryStateChange"))
+            .put("onStrokesSelected", MapBuilder.of("registrationName", "onStrokesSelected"))
             .put("onMetrics", MapBuilder.of("registrationName", "onMetrics"))
             .build();
     }
@@ -262,6 +316,3 @@ public class NativeInfiniteCanvasViewManager extends SimpleViewManager<NativeInf
         }
     }
 }
-
-
-

@@ -619,6 +619,129 @@ public class NativeInfiniteCanvasView extends View {
         }
     }
 
+    // ==================== 视口与套索命令（JS 已在派发，此前 Android 侧完全没接） ====================
+    //
+    // 这 5 条 + setPage/addPage 在本轮扩展守护脚本（同时查 Android）后被抓出来：
+    // 只查 iOS 的旧版脚本让这些死接线长期存在，dispatchCommand 找不到命令号就静默 return false。
+
+    /**
+     * 由 JS 设置视口。载荷是 **JSON 字符串**（{\"x\":..,\"y\":..,\"scale\":..}），
+     * 与 JS 侧 dispatchCommand(..., [JSON.stringify(viewport)]) 一致。
+     */
+    public void applyViewportFromJS(String viewportJson) {
+        try {
+            if (viewportJson == null || viewportJson.isEmpty()) {
+                return;
+            }
+            org.json.JSONObject obj = new org.json.JSONObject(viewportJson);
+            float x = (float) obj.optDouble("x", viewportX);
+            float y = (float) obj.optDouble("y", viewportY);
+            float scale = (float) obj.optDouble("scale", viewportScale);
+            if (!Float.isFinite(scale) || scale <= 0f) {
+                return;
+            }
+            viewportX = x;
+            viewportY = y;
+            viewportScale = scale;
+            isInitialViewportSet = true;
+            updateTransform();
+            invalidate();
+            Log.d("NativeInfiniteCanvasView", "setViewport x=" + x + " y=" + y + " scale=" + scale);
+        } catch (org.json.JSONException e) {
+            Log.w("NativeInfiniteCanvasView", "setViewport 载荷解析失败: " + e.getMessage());
+        }
+    }
+
+    /** 由 JS 触发的视口复位（与内部 resetViewport 同名会冲突，故用不同方法名）。 */
+    public void resetViewportFromJS() {
+        isInitialViewportSet = true;
+        resetViewport();
+        Log.d("NativeInfiniteCanvasView", "resetViewport (from JS)");
+    }
+
+    /** 套索起点。 */
+    public void lassoStartFromJS(String payloadJson) {
+        float[] pt = extractFirstPoint(payloadJson);
+        if (pt == null) return;
+        lassoPath = new Path();
+        lassoPath.moveTo(pt[0], pt[1]);
+        lassoPaint = new Paint();
+        lassoPaint.setColor(Color.BLUE);
+        lassoPaint.setAlpha(51);
+        lassoPaint.setStyle(Paint.Style.STROKE);
+        lassoPaint.setStrokeWidth(2);
+        invalidate();
+    }
+
+    /** 套索路径更新。 */
+    public void lassoUpdateFromJS(String payloadJson) {
+        float[] pt = extractFirstPoint(payloadJson);
+        if (pt == null) return;
+        if (lassoPath == null) {
+            lassoStartFromJS(payloadJson);
+            return;
+        }
+        lassoPath.lineTo(pt[0], pt[1]);
+        invalidate();
+    }
+
+    /** 套索结束：命中判定 + 上报。 */
+    public void lassoCompleteFromJS(String payloadJson) {
+        endLassoSelection();
+    }
+
+    /** 从套索载荷里取第一个点，兼容 {points:[...]} / [{x,y}] / [[x,y]] 三种形态。 */
+    private float[] extractFirstPoint(String payloadJson) {
+        if (payloadJson == null || payloadJson.isEmpty()) return null;
+        try {
+            String trimmed = payloadJson.trim();
+            if (trimmed.startsWith("{")) {
+                org.json.JSONObject obj = new org.json.JSONObject(trimmed);
+                org.json.JSONArray arr = obj.optJSONArray("points");
+                if (arr != null && arr.length() > 0) {
+                    org.json.JSONObject p = arr.optJSONObject(0);
+                    if (p != null) {
+                        return new float[]{(float) p.optDouble("x", 0d), (float) p.optDouble("y", 0d)};
+                    }
+                }
+                return new float[]{(float) obj.optDouble("x", 0d), (float) obj.optDouble("y", 0d)};
+            }
+            if (trimmed.startsWith("[")) {
+                org.json.JSONArray arr = new org.json.JSONArray(trimmed);
+                if (arr.length() > 0) {
+                    Object first = arr.opt(0);
+                    if (first instanceof org.json.JSONObject) {
+                        org.json.JSONObject p = (org.json.JSONObject) first;
+                        return new float[]{(float) p.optDouble("x", 0d), (float) p.optDouble("y", 0d)};
+                    }
+                    if (first instanceof org.json.JSONArray) {
+                        org.json.JSONArray pair = (org.json.JSONArray) first;
+                        if (pair.length() >= 2) {
+                            return new float[]{(float) pair.optDouble(0, 0d), (float) pair.optDouble(1, 0d)};
+                        }
+                    }
+                }
+            }
+        } catch (org.json.JSONException e) {
+            Log.w("NativeInfiniteCanvasView", "套索载荷解析失败: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * 无限画布没有「页」的概念，但 JS 的书签跳转路径会发 setPage。
+     * 显式登记为 no-op 并打日志，而不是继续让它「解析不到」：
+     * 这样排查时能区分「无限画布不适用」与「命令根本没发出去」。
+     */
+    public void setPageNoop(int page) {
+        Log.d("NativeInfiniteCanvasView", "setPage(" + page + ") 在无限画布上不适用，已忽略");
+    }
+
+    /** 同上：无限画布没有「加页」。 */
+    public void addPageNoop() {
+        Log.d("NativeInfiniteCanvasView", "addPage 在无限画布上不适用，已忽略");
+    }
+
     private void endLassoSelection() {
         if (lassoPath == null) return;
 

@@ -92,6 +92,13 @@ public class NativePagedNoteViewManager extends SimpleViewManager<NativePagedNot
             .put("duplicateSelectedStrokes", 21)
             .put("moveSelectedStrokes", 22)
             .put("clearStrokeSelection", 23)
+            // 视口与套索：JS 一直在派发，但 Android 命令表里从来没有这几条，
+            // dispatchCommand 找不到命令号就静默 return false（「编排视口无效」「套索没反应」）。
+            .put("setViewport", 24)
+            .put("resetViewport", 25)
+            .put("lassoStart", 26)
+            .put("lassoUpdate", 27)
+            .put("lassoComplete", 28)
             .build();
     }
 
@@ -198,6 +205,29 @@ public class NativePagedNoteViewManager extends SimpleViewManager<NativePagedNot
                 break;
             case 23: // clearStrokeSelection
                 root.clearStrokeSelection();
+                break;
+            case 24: // setViewport(viewportJson) —— JS 传的是 JSON 字符串，不是数字
+                if (args != null && args.size() > 0) {
+                    root.setViewport(args.getString(0));
+                }
+                break;
+            case 25: // resetViewport
+                root.resetViewport();
+                break;
+            case 26: // lassoStart(payloadJson)
+                if (args != null && args.size() > 0) {
+                    root.lassoStart(args.getString(0));
+                }
+                break;
+            case 27: // lassoUpdate(payloadJson)
+                if (args != null && args.size() > 0) {
+                    root.lassoUpdate(args.getString(0));
+                }
+                break;
+            case 28: // lassoComplete(payloadJson)
+                if (args != null && args.size() > 0) {
+                    root.lassoComplete(args.getString(0));
+                }
                 break;
         }
     }

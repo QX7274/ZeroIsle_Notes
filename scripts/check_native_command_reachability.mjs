@@ -23,7 +23,8 @@ while ((mm = segRe.exec(block))) {
   surfaces[name] = cmds;
 }
 
-function nativeCommands(path) {
+// 解析 iOS 的 constantsToExport Commands 表（@"name": @数字）
+function iosNativeCommands(path) {
   const s = readFileSync(path, 'utf8');
   const seg = s.slice(s.indexOf('constantsToExport'));
   const out = {};
@@ -33,8 +34,35 @@ function nativeCommands(path) {
   return out;
 }
 
-const paged = nativeCommands('ios/NativePagedNoteView/NativePagedNoteViewManager.m');
-const infinite = nativeCommands('ios/NativeInfiniteCanvasView/NativeInfiniteCanvasViewManager.m');
+// 解析 Android 的 getCommandsMap()（MapBuilder 的 .put("name", 数字)）
+// 为什么必须单独支持 Android：两个平台是各自独立的命令表，
+// 只查 iOS 会漏掉「iOS 接了、Android 没接》这种最常见的跨端不一致
+// （上一轮就真实发生过：4 条选中操作命令 iOS 补了、Android 靠人肉发现）。
+function androidNativeCommands(path) {
+  const s = readFileSync(path, 'utf8');
+  const start = s.indexOf('getCommandsMap');
+  const seg = s.slice(start, s.indexOf('receiveCommand', start));
+  const out = {};
+  const re = /\.put\("([A-Za-z]+)"\s*,\s*(\d+)\)/g;
+  let x;
+  while ((x = re.exec(seg))) out[x[1]] = Number(x[2]);
+  return out;
+}
+
+const NATIVE_TABLES = [
+  {
+    label: '分页笔记',
+    type: 'PAGED',
+    ios: 'ios/NativePagedNoteView/NativePagedNoteViewManager.m',
+    android: 'android/app/src/main/java/com/zeroisle_notes/nativepaged/NativePagedNoteViewManager.java',
+  },
+  {
+    label: '无限画布',
+    type: 'INFINITE',
+    ios: 'ios/NativeInfiniteCanvasView/NativeInfiniteCanvasViewManager.m',
+    android: 'android/app/src/main/java/com/zeroisle_notes/nativeinfinite/NativeInfiniteCanvasViewManager.java',
+  },
+];
 
 function check(label, type, table) {
   const cmds = surfaces[type] || {};
@@ -56,8 +84,12 @@ function check(label, type, table) {
 }
 
 let fail = 0;
-fail += check('分页笔记', 'PAGED', paged);
-fail += check('无限画布', 'INFINITE', infinite);
+for (const surface of NATIVE_TABLES) {
+  const iosTable = iosNativeCommands(surface.ios);
+  const androidTable = androidNativeCommands(surface.android);
+  fail += check(surface.label + ' / iOS', surface.type, iosTable);
+  fail += check(surface.label + ' / Android', surface.type, androidTable);
+}
 
 console.log('');
 console.log(fail === 0 ? 'RESULT: PASS — JS 协议命令在原生命令表里全部可达' : 'RESULT: FAIL (' + fail + ' 条不可达)');

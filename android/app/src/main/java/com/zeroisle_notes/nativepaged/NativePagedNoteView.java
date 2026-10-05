@@ -1680,6 +1680,144 @@ public class NativePagedNoteView extends ScrollView {
         Log.d(TAG, "平移选中笔迹 " + moved + " 条 dx=" + dx + " dy=" + dy);
     }
 
+    // ==================== 视口与套索命令（JS 已在派发，此前 Android 侧完全没接） ====================
+    //
+    // 上一轮补 iOS 的守护脚本只查了 iOS 命令表，于是这 5 条在 Android 上长期是死接线：
+    // dispatchCommand 找不到命令号就静默 return false，表现为「JS 编排视口无效」「套索套一圈没反应」。
+
+    /**
+     * 由 JS 设置视口。
+     *
+     * 注意载荷形态：JS 侧是 `dispatchCommand(..., [JSON.stringify(viewport)])`，
+     * 即**一个 JSON 字符串**（{\"x\":..,\"y\":..,\"scale\":..}），不是三个数字参数。
+     * 必须按字符串解析，否则这里永远收不到有效值（协议一致性的经典坑）。
+     */
+    public void setViewport(String viewportJson) {
+        float scale = 1.0f;
+        try {
+            if (viewportJson != null && !viewportJson.isEmpty()) {
+                org.json.JSONObject obj = new org.json.JSONObject(viewportJson);
+                scale = (float) obj.optDouble("scale", 1d);
+            }
+        } catch (org.json.JSONException e) {
+            Log.w(TAG, "setViewport 载荷解析失败: " + e.getMessage());
+            return;
+        }
+        if (!Float.isFinite(scale) || scale <= 0f) {
+            return;
+        }
+        this.scaleFactor = Math.max(MIN_SCALE, Math.min(scale, MAX_SCALE));
+        if (pagesContainer != null) {
+            pagesContainer.setScaleFactor(this.scaleFactor);
+        }
+        for (PageView pageView : pageViews) {
+            pageView.setParentScaleFactor(this.scaleFactor);
+        }
+        requestLayout();
+        invalidate();
+        Log.d(TAG, "setViewport scale=" + this.scaleFactor);
+    }
+
+    /** 恢复默认视口（缩放回 1.0）。 */
+    public void resetViewport() {
+        setViewport("{\"x\":0,\"y\":0,\"scale\":1}");
+        scrollTo(0, 0);
+        Log.d(TAG, "resetViewport");
+    }
+
+    /** 套索起点：开始一次新的套索选择。 */
+    public void lassoStart(String payloadJson) {
+        float[] pt = parseFirstPoint(payloadJson);
+        if (pt == null) {
+            return;
+        }
+        if (currentPage < 0 || currentPage >= pageViews.size()) {
+            return;
+        }
+        PageView pageView = pageViews.get(currentPage);
+        pageView.lassoPath = new Path();
+        pageView.lassoPath.moveTo(pt[0], pt[1]);
+        pageView.lassoPaint = new Paint();
+        pageView.lassoPaint.setColor(Color.BLUE);
+        pageView.lassoPaint.setAlpha(51);
+        pageView.lassoPaint.setStyle(Paint.Style.STROKE);
+        pageView.lassoPaint.setStrokeWidth(2);
+        pageView.invalidate();
+    }
+
+    /** 套索路径更新：追加一个点。 */
+    public void lassoUpdate(String payloadJson) {
+        float[] pt = parseFirstPoint(payloadJson);
+        if (pt == null) {
+            return;
+        }
+        if (currentPage < 0 || currentPage >= pageViews.size()) {
+            return;
+        }
+        PageView pageView = pageViews.get(currentPage);
+        if (pageView.lassoPath == null) {
+            lassoStart(payloadJson);
+            return;
+        }
+        pageView.lassoPath.lineTo(pt[0], pt[1]);
+        pageView.invalidate();
+    }
+
+    /** 套索结束：命中判定与上报。 */
+    public void lassoComplete(String payloadJson) {
+        if (currentPage < 0 || currentPage >= pageViews.size()) {
+            return;
+        }
+        pageViews.get(currentPage).endLassoSelection();
+    }
+
+    /**
+     * 从 JS 的套索载荷里取第一个点。
+     * 兼容三种形态：{"points":[{x,y},...]} / [{x,y},...] / {x,y}，
+     * 因为工具栏与不同屏幕传入的形状历史上并不统一。
+     */
+    private float[] parseFirstPoint(String payloadJson) {
+        if (payloadJson == null || payloadJson.isEmpty()) {
+            return null;
+        }
+        try {
+            String trimmed = payloadJson.trim();
+            if (trimmed.startsWith("{")) {
+                org.json.JSONObject obj = new org.json.JSONObject(trimmed);
+                if (obj.has("points")) {
+                    org.json.JSONArray arr = obj.optJSONArray("points");
+                    if (arr != null && arr.length() > 0) {
+                        org.json.JSONObject p = arr.optJSONObject(0);
+                        if (p != null) {
+                            return new float[]{(float) p.optDouble("x", 0d), (float) p.optDouble("y", 0d)};
+                        }
+                    }
+                }
+                return new float[]{(float) obj.optDouble("x", 0d), (float) obj.optDouble("y", 0d)};
+            }
+            if (trimmed.startsWith("[")) {
+                org.json.JSONArray arr = new org.json.JSONArray(trimmed);
+                // 可能是 [[x,y],...] 或 [{x,y},...]
+                if (arr.length() > 0) {
+                    Object first = arr.opt(0);
+                    if (first instanceof org.json.JSONObject) {
+                        org.json.JSONObject p = (org.json.JSONObject) first;
+                        return new float[]{(float) p.optDouble("x", 0d), (float) p.optDouble("y", 0d)};
+                    }
+                    if (first instanceof org.json.JSONArray) {
+                        org.json.JSONArray pair = (org.json.JSONArray) first;
+                        if (pair.length() >= 2) {
+                            return new float[]{(float) pair.optDouble(0, 0d), (float) pair.optDouble(1, 0d)};
+                        }
+                    }
+                }
+            }
+        } catch (org.json.JSONException e) {
+            Log.w(TAG, "套索载荷解析失败: " + e.getMessage());
+        }
+        return null;
+    }
+
     /** 结束选择：清掉高亮与选中集合。 */
     public void clearStrokeSelection() {
         clearSelectionOnAllPages();
