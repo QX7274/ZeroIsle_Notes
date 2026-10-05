@@ -6,8 +6,13 @@ from rest_framework.permissions import IsAuthenticated
 from common.filters import MongoFilterBackend, MongoSearchFilter
 from django.utils import timezone
 from django.db import models
-from .models import AdminOperationLog, SystemLog, LogExportHistory
-from .serializers import AdminOperationLogSerializer, SystemLogSerializer, LogExportHistorySerializer
+from .models import AdminOperationLog, LogBackup, LogExportHistory, SystemLog
+from .serializers import (
+    AdminOperationLogSerializer,
+    LogBackupSerializer,
+    LogExportHistorySerializer,
+    SystemLogSerializer,
+)
 from .services import log_service
 import logging
 import csv
@@ -1043,3 +1048,97 @@ class LogAnalyticsView(APIView):
             'performance_score': round(performance_score, 1),
             'health_suggestions': health_suggestions
         }
+
+
+class LogBackupViewSet(viewsets.ModelViewSet):
+    """日志备份视图集。
+
+    前端「日志导出」页（已挂载在 /logs/export）调用以下四个能力：
+      GET    /api/logs/backup/                 列表
+      POST   /api/logs/backup/                 创建
+      DELETE /api/logs/backup/{id}/            删除
+      GET    /api/logs/backup/{id}/download/   取得下载地址
+    后端此前完全没有这些路由，页面一直提示"获取备份列表失败"。
+
+    download 的诚实处理：本视图集管理的是**备份记录**，
+    真实的日志归档文件生成属于运维职责。若记录上还没有 download_url，
+    则返回 200 并显式带上 available=False 与说明，
+    让前端提示"备份文件尚未生成"，而不是返回一个假链接或直接 500。
+    """
+
+    serializer_class = LogBackupSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [MongoFilterBackend, MongoSearchFilter, filters.OrderingFilter]
+    filterset_fields = ['log_type', 'status', 'created_by']
+    search_fields = ['name', 'description', 'created_by']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        return LogBackup.objects.all()
+
+    def perform_create(self, serializer):
+        """按当前日志量填写记录数，并记录创建者。"""
+        log_type = self.request.data.get("log_type", "all")
+        try:
+            if log_type == "system":
+                count = SystemLog.objects.count()
+            elif log_type == "admin":
+                count = AdminOperationLog.objects.count()
+            else:
+                count = SystemLog.objects.count() + AdminOperationLog.objects.count()
+        except Exception:  # noqa: BLE001
+            count = 0
+        serializer.save(
+            record_count=count,
+            created_by=getattr(self.request.user, "username", "") or "admin",
+        )
+
+    def create(self, request, *args, **kwargs):
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            return Response(
+                {"status": "success", "data": serializer.data},
+                status=status.HTTP_201_CREATED,
+            )
+        except ValidationError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            logger.error("创建日志备份失败: %s", exc)
+            return Response(
+                {"error": f"创建日志备份失败: {exc}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def list(self, request, *args, **kwargs):
+        """返回列表；保持与其它列表接口一致的 {count, results} 形状，
+        同时把 results 命名成前端直接读取的 data，减少前端适配。"""
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            "count": len(serializer.data),
+            "results": serializer.data,
+            "data": serializer.data,
+        })
+
+    @action(detail=True, methods=["get"])
+    def download(self, request, pk=None):
+        """取得下载地址。文件未生成时如实告知，不返回假链接。"""
+        backup = self.get_object()
+        url = getattr(backup, "download_url", None)
+        if not url:
+            return Response({
+                "status": "unavailable",
+                "available": False,
+                "message": (
+                    "备份记录已存在，但备份文件尚未生成。日志归档文件的生成"
+                    "需要运维侧执行归档任务。"
+                ),
+            })
+        return Response({
+            "status": "success",
+            "available": True,
+            "download_url": url,
+        })

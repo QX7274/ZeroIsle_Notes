@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from common.filters import MongoFilterBackend, MongoSearchFilter
 from django.utils import timezone
 from mongoengine.queryset.visitor import Q
-from .models import NoteCategory, Tag, ContentReport, Note, Comment, Attachment
+from .models import NoteCategory, Tag, ContentReport, Note, Comment, Attachment, NoteVersion
 from .serializers import (
     NoteCategorySerializer,
     TagSerializer,
@@ -20,7 +20,8 @@ from .serializers import (
     CommentSerializer,
     CommentListSerializer,
     AttachmentSerializer,
-    AttachmentListSerializer
+    AttachmentListSerializer,
+    NoteVersionSerializer,
 )
 from .services import content_service
 import logging
@@ -461,6 +462,26 @@ class NoteViewSet(viewsets.ModelViewSet):
             logger.error(f"在主应用中删除笔记时出错: {str(e)}")
 
         instance.delete()
+
+    @action(detail=True, methods=['get'])
+    def versions(self, request, pk=None):
+        """某条笔记的版本历史（只读）。
+
+        为什么新增该端点：
+        前端 NoteDetail 页面调用 /notes/{id}/versions 展示版本历史，
+        但该端点在管理后台**从来不存在**，功能一直是坏的
+        （此前只能由 noteService 的 mock 假数据兜底）。
+
+        数据来源是主后端写入的 note_versions 集合，管理后台只读展示；
+        按版本号倒序返回，便于前端直接渲染"最新在前"的列表。
+        """
+        note = self.get_object()
+        versions = NoteVersion.objects.filter(note=note).order_by('-version_number')
+        serializer = NoteVersionSerializer(versions, many=True)
+        return Response({
+            'count': len(serializer.data),
+            'results': serializer.data,
+        })
 
     @action(detail=False, methods=['get'])
     def stats(self, request):

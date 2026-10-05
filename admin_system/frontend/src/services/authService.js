@@ -93,7 +93,10 @@ export const checkAuth = () => {
 // 获取当前用户信息
 export const getCurrentUser = async () => {
   try {
-    const response = await api.get('/auth/me');
+    // 修复：原路径 `/auth/me` 在后端不存在，真实端点是 `/auth/check/`
+    // （CheckAuthView，返回 {status, data:{isAuthenticated, user}}）。
+    // AdminLayout 用它渲染当前登录用户，路径错会导致顶栏信息一直为空。
+    const response = await api.get('/auth/check/');
     return response.data;
   } catch (error) {
     console.error('获取用户信息错误:', error);

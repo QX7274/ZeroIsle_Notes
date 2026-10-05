@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from common.serializers import MongoDocumentSerializer
-from .models import AdminOperationLog, SystemLog, LogExportHistory
+from .models import AdminOperationLog, LogBackup, LogExportHistory, SystemLog
 
 class AdminOperationLogSerializer(MongoDocumentSerializer):
     """管理员操作日志序列化器"""
@@ -47,3 +47,23 @@ class LogExportHistorySerializer(MongoDocumentSerializer):
             'excel': 'Excel'
         }
         return format_map.get(obj.format, obj.format)
+
+
+class LogBackupSerializer(MongoDocumentSerializer):
+    """日志备份序列化器（字段名对齐前端 LogExport 页面实际读取的键）。"""
+
+    log_type_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LogBackup
+        fields = ['id', 'name', 'description', 'log_type', 'log_type_display',
+                  'include_all', 'start_time', 'end_time', 'record_count',
+                  'file_size', 'download_url', 'status', 'created_by', 'created_at']
+        read_only_fields = ['id', 'created_at', 'record_count', 'file_size', 'download_url']
+
+    def get_log_type_display(self, obj):
+        return {
+            'all': '所有日志',
+            'system': '系统日志',
+            'admin': '管理员日志',
+        }.get(getattr(obj, "log_type", None), getattr(obj, "log_type", None))

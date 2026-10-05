@@ -217,6 +217,44 @@ class Comment(Document):
         self.updated_at = timezone.now()
         return super(Comment, self).save(*args, **kwargs)
 
+class NoteVersion(Document):
+    """笔记版本快照（只读视图）。
+
+    为什么现在补这个模型：
+    前端 NoteDetail 页面有"版本历史"功能（getNoteVersions），
+    但它调用的 /notes/{id}/versions 在后端**根本不存在**，
+    因此该功能一直是坏的（此前只能靠 noteService 的 mock 假数据兜底）。
+
+    该集合由主后端 backend/notes/mongodb_models/note_version.py 写入，
+    管理后台只读展示，因此这里只声明展示所需字段，并保持与主后端一致的主键口径
+    （UUIDField 默认 binary=True，见阶段3 的共享集合对齐结论）。
+
+    注意：字段名与主后端保持一致（version_number / created_at / description），
+    不要按前端旧 mock 的命名（version / createdAt）另起一套。
+    """
+    id = UUIDField(primary_key=True, default=lambda: uuid.uuid4())
+    note = ReferenceField(Note, required=False, verbose_name='关联笔记')
+    title = StringField(max_length=255, required=False, verbose_name='标题')
+    content = StringField(required=False, verbose_name='内容')
+    description = StringField(max_length=255, verbose_name='版本说明')
+    version_number = IntField(required=False, verbose_name='版本号')
+    is_current = BooleanField(default=False, verbose_name='是否为当前版本')
+    is_auto_save = BooleanField(default=False, verbose_name='是否自动保存')
+    is_deleted = BooleanField(default=False, verbose_name='是否删除')
+    created_at = DateTimeField(default=timezone.now, verbose_name='创建时间')
+
+    meta = {
+        'collection': 'note_versions',
+        'ordering': ['-created_at'],
+        'indexes': ['note', 'version_number', 'created_at'],
+        'verbose_name': '笔记版本',
+        'verbose_name_plural': '笔记版本',
+    }
+
+    def __str__(self):
+        return f'{self.note_id} v{self.version_number}'
+
+
 class Attachment(Document):
     """附件模型
 

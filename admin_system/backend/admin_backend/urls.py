@@ -50,6 +50,11 @@ urlpatterns = [
     path('api/docs/', schema_view.with_ui('swagger', cache_timeout=0), name='admin-api-docs'),
 
     # API端点
+    # 仪表盘统计：前端调用 /api/stats/dashboard/，跨 users/notes/content 多领域，
+    # 因此挂在顶层而非某个 app 之下。此前该路由完全不存在，
+    # 导致登录后首页（Dashboard）始终加载失败。
+    path('api/stats/', include('content.stats_urls')),
+
     path('api/auth/', include('auth_api.urls')),
     path('api/users/', include('users.urls')),
     path('api/content/', include('content.urls')),

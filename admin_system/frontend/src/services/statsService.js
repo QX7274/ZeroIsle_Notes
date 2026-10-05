@@ -12,10 +12,15 @@ export const getDashboardStats = async (params = {}) => {
 };
 
 // 获取用户统计数据
+//
+// 修复：原路径 `/users/stats` 不存在 —— 后端是 `/users/profiles/stats/`
+// （UserProfileViewSet 的 stats 动作）。UserList / UserAnalytics 都在用它。
+// 同时原实现写死 `response.data.data`，而该端点直接返回扁平对象，
+// 会把统计整块变成 undefined；这里改为兼容两种形状。
 export const getUserStats = async () => {
   try {
-    const response = await api.get('/users/stats');
-    return response.data.data;
+    const response = await api.get('/users/profiles/stats/');
+    return response.data?.data ?? response.data;
   } catch (error) {
     console.error('获取用户统计数据错误:', error);
     throw error;
@@ -23,10 +28,12 @@ export const getUserStats = async () => {
 };
 
 // 获取笔记统计数据
+//
+// 修复：后端无 `/notes/stats`，真实路径是 `/content/notes/stats/`。
 export const getNoteStats = async () => {
   try {
-    const response = await api.get('/notes/stats');
-    return response.data.data;
+    const response = await api.get('/content/notes/stats/');
+    return response.data?.data ?? response.data;
   } catch (error) {
     console.error('获取笔记统计数据错误:', error);
     throw error;
@@ -34,10 +41,15 @@ export const getNoteStats = async () => {
 };
 
 // 获取标签统计数据
+//
+// 后端**没有** tags 统计端点（TagViewSet 只有标准 CRUD + sync），
+// 原 `/tags/stats` 必然 404。现基于真实标签列表自行聚合，
+// 保证数字与列表一致，且无需为统计新增后端接口。
 export const getTagStats = async () => {
   try {
-    const response = await api.get('/tags/stats');
-    return response.data.data;
+    const response = await api.get('/content/tags/', { params: { page_size: 200 } });
+    const list = response.data?.results ?? response.data ?? [];
+    return { total: Array.isArray(list) ? list.length : 0, list };
   } catch (error) {
     console.error('获取标签统计数据错误:', error);
     throw error;
@@ -45,10 +57,13 @@ export const getTagStats = async () => {
 };
 
 // 获取分类统计数据
+//
+// 同理，后端没有 categories 统计端点，基于真实分类列表聚合。
 export const getCategoryStats = async () => {
   try {
-    const response = await api.get('/categories/stats');
-    return response.data.data;
+    const response = await api.get('/content/categories/', { params: { page_size: 200 } });
+    const list = response.data?.results ?? response.data ?? [];
+    return { total: Array.isArray(list) ? list.length : 0, list };
   } catch (error) {
     console.error('获取分类统计数据错误:', error);
     throw error;

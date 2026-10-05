@@ -206,6 +206,12 @@ jobs:
       - name: Django system check
         run: python -X utf8 manage.py check
 
+      # 说明：pytest 里包含两类"构建与 lint 都发现不了"的守护 ——
+      #   1. tests/test_frontend_service_route_contract.py：
+      #      比对前端 services 调用的路径与后端真实路由，
+      #      拦住"调用不存在的接口 / 页面展示 mock 假数据"这类缺陷；
+      #   2. tests/test_dashboard_api.py、test_log_backup_api.py：
+      #      锁定仪表盘与日志备份的字段契约。
       - name: Run backend tests
         run: python -X utf8 -m pytest -q
 

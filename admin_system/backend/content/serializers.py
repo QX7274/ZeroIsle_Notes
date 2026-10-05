@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from common.serializers import MongoDocumentSerializer
-from .models import NoteCategory, Tag, ContentReport, Note, Comment, Attachment
+from .models import NoteCategory, Tag, ContentReport, Note, Comment, Attachment, NoteVersion
 
 class NoteCategorySerializer(MongoDocumentSerializer):
     """笔记分类序列化器"""
@@ -118,3 +118,28 @@ class AttachmentListSerializer(MongoDocumentSerializer):
         model = Attachment
         fields = ['id', 'filename', 'file_type', 'file_type_display', 'file_size',
                  'note', 'note_title', 'user_id', 'created_at']
+
+
+class NoteVersionSerializer(MongoDocumentSerializer):
+    """笔记版本序列化器（只读）。
+
+    前端 NoteDetail 的"版本历史"需要展示：版本号、说明、时间、是否当前版本。
+    这里用 SerializerMethodField 给出前端友好的命名（version / createdAt），
+    同时保留后端字段名（version_number / created_at），避免前端再适配；
+    二者都能取到，方便后续统一。
+    """
+    version = serializers.SerializerMethodField()
+    createdAt = serializers.SerializerMethodField()
+
+    class Meta:
+        model = NoteVersion
+        fields = ['id', 'note', 'title', 'description', 'version_number', 'version',
+                  'is_current', 'is_auto_save', 'created_at', 'createdAt']
+        read_only_fields = fields
+
+    def get_version(self, obj):
+        return getattr(obj, "version_number", None)
+
+    def get_createdAt(self, obj):
+        created = getattr(obj, "created_at", None)
+        return created.isoformat() if created else None
