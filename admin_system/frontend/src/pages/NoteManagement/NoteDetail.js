@@ -125,8 +125,8 @@ const NoteDetail = () => {
     try {
       // 创建笔记内容
       let content = `# ${note.title}\n\n`;
-      content += `作者: ${note.author.username}\n`;
-      content += `分类: ${note.category?.name || '无分类'}\n`;
+      content += `作者: ${note.username || "-"}\n`;
+      content += `分类: ${note.category_name || '无分类'}\n`;
       content += `标签: ${note.tags?.map(tag => tag.name).join(', ') || '无标签'}\n`;
       content += `创建时间: ${note.createdAt}\n`;
       content += `更新时间: ${note.updatedAt}\n\n`;
@@ -288,13 +288,25 @@ const NoteDetail = () => {
                 <Descriptions bordered column={2} size="middle">
                   <Descriptions.Item label="ID" span={2}>{note.id}</Descriptions.Item>
                   <Descriptions.Item label={<><UserOutlined /> 作者</>}>
+                    {/*
+                      修复：后端 Note 模型用的是 `username`（字符串）与 `user_id`，
+                      并没有 author 对象。原写法 note.author?.username 恒为 undefined，
+                      作者一栏一直是空白。现按真实字段显示，
+                      并在有 user_id 时才做可点击跳转。
+                    */}
                     <Space>
-                      <Avatar size="small" icon={<UserOutlined />} src={note.author?.avatar} />
-                      <a onClick={() => navigate(`/users/detail/${note.author?.id}`)}>{note.author?.username}</a>
+                      <Avatar size="small" icon={<UserOutlined />} src={note.avatar} />
+                      {note.user_id ? (
+                        <a onClick={() => navigate(`/users/detail/${note.user_id}`)}>
+                          {note.username || note.user_id}
+                        </a>
+                      ) : (
+                        <span>{note.username || "-"}</span>
+                      )}
                     </Space>
                   </Descriptions.Item>
                   <Descriptions.Item label={<><FileTextOutlined /> 分类</>}>
-                    {note.category?.name || '无分类'}
+                    {note.category_name || '无分类'}
                   </Descriptions.Item>
                   <Descriptions.Item label={<><TagOutlined /> 标签</>} span={2}>
                     {note.tags?.length > 0 ? (

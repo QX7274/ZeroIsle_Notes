@@ -67,13 +67,16 @@ const ReportList = () => {
         queryParams.created_at__lte = filters.dateRange[1].format('YYYY-MM-DD');
       }
 
+      // 说明：服务层统一返回 {data,total,raw}。
+      // 原写法读 response.results / response.count，在旧实现（直接返回后端响应）下恰好可用，
+      // 但在统一解包后这两个键不复存在，会静默变成空列表 + total=0。
       const response = await getReports(queryParams);
-      setReports(response.results || []);
+      setReports(response.data || []);
       setPagination({
         ...pagination,
         current: params.page || pagination.current,
         pageSize: params.pageSize || pagination.pageSize,
-        total: response.count || 0
+        total: response.total || 0,
       });
     } catch (error) {
       console.error('获取报表列表错误:', error);

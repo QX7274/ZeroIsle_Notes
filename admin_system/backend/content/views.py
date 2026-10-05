@@ -397,7 +397,12 @@ class NoteViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(status=status_filter)
 
         # 按用户筛选
-        user_id = self.request.query_params.get('user_id')
+        # 同时接受 user_id（后端口径）与 userId（前端历史写法）。
+        # 此前只认 user_id，而前端 getUserNotes 传的是 userId，
+        # 导致该筛选被静默忽略 —— 用户详情页的"笔记"标签会列出**所有人的笔记**，
+        # 而不只是该用户的，属于数据正确性问题（不是单纯显示问题）。
+        user_id = (self.request.query_params.get('user_id')
+                   or self.request.query_params.get('userId'))
         if user_id:
             queryset = queryset.filter(user_id=user_id)
 

@@ -1,15 +1,50 @@
 import api from './authService';
 
+/**
+ * 统一"分页响应 -> {data,total}"的解包口径。
+ *
+ * 为什么需要：后端列表接口一律返回 DRF 的分页形状 {count, results}，
+ * 但各页面历史上按两种方式消费它 ——
+ *   有的写 response.data / response.total（期望已解包），
+ *   有的直接 setState(response)（期望就是这个分页对象）。
+ * 结果就是"表格永远空行"这类问题：setNotes(response.data) 里的 response.data
+ * 在后端响应里并不存在（只有 count/results），于是 data 为 undefined。
+ *
+ * 现在统一由服务层返回 {data, total, raw}：
+ *   - data  : 行数组（已解包）
+ *   - total : 总条数（用于分页组件）
+ *   - raw   : 原始响应，留给确需完整分页信息的调用方
+ * 纯数组型调用方（如 setCategories(data)）由各页面按需改用 .data。
+ */
+const unwrapList = (response) => {
+  const payload = response?.data;
+  if (Array.isArray(payload)) {
+    return { data: payload, total: payload.length, raw: payload };
+  }
+  const rows = payload?.results ?? [];
+  return {
+    data: Array.isArray(rows) ? rows : [],
+    total: payload?.count ?? (Array.isArray(rows) ? rows.length : 0),
+    raw: payload,
+  };
+};
+
 // 获取用户笔记
 export const getUserNotes = async (userId, params) => {
   try {
     const response = await api.get('/content/notes/', {
       params: {
         ...params,
-        userId: userId
+        // 用后端认的 user_id；后端本轮也已兼容 userId 别名，
+        // 但这里统一成后端口径，减少一层隐式约定。
+        user_id: userId
       }
     });
-    return response.data;
+    // 后端是分页响应 {count, results}；调用方（UserDetail）当作数组使用，
+    // 之前直接把整个分页对象 setNotes 进去，表格必然渲染不出行。
+    // 这里统一解包，并保留 total 供调用方按需使用。
+    const results = response.data?.results ?? response.data ?? [];
+    return Array.isArray(results) ? results : [];
   } catch (error) {
     console.error('获取用户笔记错误:', error);
     throw error;
@@ -123,7 +158,7 @@ export const getLatestContent = async (params) => {
 export const getCategories = async (params) => {
   try {
     const response = await api.get('/content/categories/', { params });
-    return response.data;
+    return unwrapList(response);
   } catch (error) {
     console.error('获取分类列表错误:', error);
     throw error;
@@ -178,7 +213,7 @@ export const syncCategories = async (options = {}) => {
 export const getTags = async (params) => {
   try {
     const response = await api.get('/content/tags/', { params });
-    return response.data;
+    return unwrapList(response);
   } catch (error) {
     console.error('获取标签列表错误:', error);
     throw error;
@@ -222,7 +257,7 @@ export const syncTags = async (options = {}) => {
 export const getReports = async (params) => {
   try {
     const response = await api.get('/content/reports/', { params });
-    return response.data;
+    return unwrapList(response);
   } catch (error) {
     console.error('获取举报列表错误:', error);
     throw error;
@@ -299,7 +334,7 @@ export const syncReports = async (options = {}) => {
 export const getNotes = async (params) => {
   try {
     const response = await api.get('/content/notes/', { params });
-    return response.data;
+    return unwrapList(response);
   } catch (error) {
     console.error('获取笔记列表错误:', error);
     throw error;

@@ -91,17 +91,27 @@ const NoteList = () => {
   const fetchNotes = async (params = {}) => {
     try {
       setLoading(true);
+      // 重要修复：查询参数必须用**后端认的 snake_case**。
+      // 原来传的是 categoryId/tagId/startDate/endDate，而后端只读
+      // category_id/tag_id/start_date/end_date —— 这些筛选条件被静默忽略，
+      // 页面上"按分类/标签/日期筛选"点了没用（结果仍是全部数据），
+      // 属于功能性缺陷而非样式问题。
       const response = await getNotes({
         page: params.page || pagination.current,
-        pageSize: params.pageSize || pagination.pageSize,
-        keyword: filters.keyword,
-        categoryId: filters.categoryId,
-        tagId: filters.tagId,
+        // 分页大小两种写法后端都认（MongoPageNumberPagination 已兼容），
+        // 这里统一成 page_size。
+        page_size: params.pageSize || pagination.pageSize,
+        search: filters.keyword,
+        category_id: filters.categoryId,
+        tag_id: filters.tagId,
         status: filters.status !== 'all' ? filters.status : undefined,
-        startDate: filters.dateRange?.[0]?.format('YYYY-MM-DD'),
-        endDate: filters.dateRange?.[1]?.format('YYYY-MM-DD'),
-        sortField: params.sortField,
-        sortOrder: params.sortOrder,
+        start_date: filters.dateRange?.[0]?.format('YYYY-MM-DD'),
+        end_date: filters.dateRange?.[1]?.format('YYYY-MM-DD'),
+        // 排序：后端用 ordering（DRF OrderingFilter），值为字段名，
+        // 前缀 - 表示倒序。原 sortField/sortOrder 两个参数后端都不认。
+        ordering: params.sortField
+          ? `${params.sortOrder === "descend" ? "-" : ""}${params.sortField}`
+          : undefined,
       });
 
       setNotes(response.data);
@@ -122,8 +132,10 @@ const NoteList = () => {
   // 获取分类列表
   const fetchCategories = async () => {
     try {
-      const data = await getCategories();
-      setCategories(data);
+      // 说明：服务层统一返回 {data,total,raw}，行数组在 .data。
+      // 原写法 setCategories(data) 会把分页对象塞进 Select 的 options，导致下拉为空。
+      const result = await getCategories();
+      setCategories(result.data);
     } catch (error) {
       console.error('获取分类列表失败:', error);
     }
@@ -132,8 +144,8 @@ const NoteList = () => {
   // 获取标签列表
   const fetchTags = async () => {
     try {
-      const data = await getTags();
-      setTags(data);
+      const result = await getTags();
+      setTags(result.data);
     } catch (error) {
       console.error('获取标签列表失败:', error);
     }
@@ -401,32 +413,41 @@ const NoteList = () => {
         <a onClick={() => navigate(`/notes/detail/${record.id}`)}>{text}</a>
       ),
     },
+    // 说明（本轮修复）：以下四列的 dataIndex 与后端 NoteListSerializer
+    // 实际返回的字段**完全对不上**，导致列表中"作者/分类/标签/创建时间"
+    // 长期显示为空白（作者列更严重：后端返回的是字符串 username，
+    // 而这里按对象取 author.id/author.username，会直接抛 TypeError）。
+    // 现按后端真实字段修正：username / category_name / tags_count / created_at。
+    // 同时保留对旧对象形状的兼容，避免后续换接口时再次白屏。
     {
       title: '作者',
-      dataIndex: 'author',
-      key: 'author',
-      render: (author) => (
-        <a onClick={() => navigate(`/users/detail/${author.id}`)}>{author.username}</a>
-      ),
+      dataIndex: 'username',
+      key: 'username',
+      render: (username, record) => {
+        // 兼容两种可能：字符串（后端现状）或对象（历史布局）
+        const name = typeof username === "string" ? username : username?.username;
+        const uid = record?.user_id ?? username?.id;
+        if (!name) return "-";
+        if (!uid) return <span>{name}</span>;
+        return (
+          <a onClick={() => navigate(`/users/detail/${uid}`)}>{name}</a>
+        );
+      },
     },
     {
       title: '分类',
-      dataIndex: 'category',
-      key: 'category',
-      render: (category) => category?.name || '-',
+      dataIndex: 'category_name',
+      key: 'category_name',
+      render: (name) => name || '-',
     },
     {
       title: '标签',
-      dataIndex: 'tags',
-      key: 'tags',
-      render: (tags) => (
-        <>
-          {tags?.map((tag) => (
-            <Tag color="blue" key={tag.id}>
-              {tag.name}
-            </Tag>
-          ))}
-        </>
+      dataIndex: 'tags_count',
+      key: 'tags_count',
+      render: (count) => (
+        // 后端列表接口只给标签数量（tags_count），不给标签详情数组。
+        // 因此这里显示数量徽标；点击进详情可看完整标签。
+        count ? <Tag color="blue">{count} 个标签</Tag> : "-"
       ),
     },
     {
@@ -441,15 +462,17 @@ const NoteList = () => {
     },
     {
       title: '创建时间',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
+      dataIndex: 'created_at',
+      key: 'created_at',
       sorter: true,
+      render: (v) => v || "-",
     },
     {
       title: '更新时间',
-      dataIndex: 'updatedAt',
-      key: 'updatedAt',
+      dataIndex: 'updated_at',
+      key: 'updated_at',
       sorter: true,
+      render: (v) => v || "-",
     },
     {
       title: '操作',
