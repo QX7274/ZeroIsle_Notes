@@ -105,6 +105,25 @@ public class NativeInfiniteCanvasViewManager extends SimpleViewManager<NativeInf
             .build();
     }
 
+    /**
+     * 按命令名接收命令。JS 现在下发的是命令名（getCommandName）；
+     * RN 默认只在有 delegate 时才处理字符串命令，本项目没有 delegate，
+     * 因此必须在这里把名字映射回命令号，否则命令会被静默丢弃。
+     */
+    @Override
+    public void receiveCommand(@NonNull NativeInfiniteCanvasView root, @Nullable String commandName, @Nullable ReadableArray args) {
+        if (commandName == null) {
+            return;
+        }
+        Map<String, Integer> commands = getCommandsMap();
+        if (commands != null && commands.containsKey(commandName)) {
+            receiveCommand(root, commands.get(commandName), args);
+        } else {
+            android.util.Log.w("NativeInfiniteCanvasViewManager",
+                "未知命令名: " + commandName + "（JS 与原生命令表不一致）");
+        }
+    }
+
     @Override
     public void receiveCommand(@NonNull NativeInfiniteCanvasView root, int commandId, @Nullable ReadableArray args) {
         switch (commandId) {

@@ -33,7 +33,13 @@
 @property (nonatomic, strong) NSString *currentTool;
 @property (nonatomic, strong) UIColor *currentColor;
 @property (nonatomic, assign) CGFloat currentStrokeWidth;
-@property (nonatomic, strong) NSDictionary *toolConfig;
+// 注意：这个属性必须叫 toolConfigDictionary，不能叫 toolConfig。
+// 因为视图还有一个用于接收命令的 -setToolConfig:(NSString *)（命令名就叫 setToolConfig），
+// @property toolConfig 会自动合成同名的 setToolConfig: setter，两者签名冲突：
+// 要么编译报 "type of property does not match type of accessor"，
+// 要么在运行时把 NSDictionary 当成 NSString 用（曾导致
+// "-[__NSDictionaryI dataUsingEncoding:]: unrecognized selector" 崩溃）。
+@property (nonatomic, strong) NSDictionary *toolConfigDictionary;
 @property (nonatomic, strong) NSString *currentShape;
 
 // 橡皮擦相关
@@ -223,8 +229,8 @@ static const CGFloat kUnifiedMaxScale = 4.0;
   }
 
   BOOL palmRejection = YES;
-  if (self.toolConfig[@"palmRejectionEnabled"]) {
-    palmRejection = [self.toolConfig[@"palmRejectionEnabled"] boolValue];
+  if (self.toolConfigDictionary[@"palmRejectionEnabled"]) {
+    palmRejection = [self.toolConfigDictionary[@"palmRejectionEnabled"] boolValue];
   }
 
   if ([self isDrawingToolActive] && palmRejection) {
@@ -479,7 +485,7 @@ static const CGFloat kUnifiedMaxScale = 4.0;
     return;
   }
 
-  self.toolConfig = config;
+  self.toolConfigDictionary = config;
   NSLog(@"[NativeInfiniteCanvasView] 工具配置更新: %@", config);
 
   if (config[@"shape"]) {
@@ -496,9 +502,9 @@ static const CGFloat kUnifiedMaxScale = 4.0;
   if (!mode || mode.length == 0) {
     return;
   }
-  NSMutableDictionary *next = [self.toolConfig mutableCopy] ?: [NSMutableDictionary dictionary];
+  NSMutableDictionary *next = [self.toolConfigDictionary mutableCopy] ?: [NSMutableDictionary dictionary];
   next[@"interactionMode"] = mode;
-  self.toolConfig = next;
+  self.toolConfigDictionary = next;
   NSLog(@"[NativeInfiniteCanvasView] 交互模式更新: %@", mode);
 }
 
@@ -2630,8 +2636,8 @@ static void ZeroIsleLassoConvert(void *info, const CGPathElement *element)
  */
 - (void)drawToolbarOverlaysInContext:(CGContextRef)context transform:(CGAffineTransform)transform
 {
-  BOOL showGrid = [self.toolConfig[@"showGrid"] boolValue];
-  BOOL showRuler = [self.toolConfig[@"showRuler"] boolValue];
+  BOOL showGrid = [self.toolConfigDictionary[@"showGrid"] boolValue];
+  BOOL showRuler = [self.toolConfigDictionary[@"showRuler"] boolValue];
   if (!showGrid && !showRuler) {
     return;
   }

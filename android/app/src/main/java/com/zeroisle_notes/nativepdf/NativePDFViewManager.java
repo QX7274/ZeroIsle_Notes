@@ -132,6 +132,24 @@ public class NativePDFViewManager extends SimpleViewManager<NativePDFView> {
             .build();
     }
 
+    /**
+     * 按命令名接收命令（同分页/无限画布：本项目 ViewManager 无 delegate，
+     * 字符串命令默认会被丢弃，必须显式映射回命令号）。
+     */
+    @Override
+    public void receiveCommand(@NonNull NativePDFView root, @Nullable String commandName, @Nullable ReadableArray args) {
+        if (commandName == null) {
+            return;
+        }
+        Map<String, Integer> commands = getCommandsMap();
+        if (commands != null && commands.containsKey(commandName)) {
+            receiveCommand(root, commands.get(commandName), args);
+        } else {
+            android.util.Log.w("NativePDFViewManager",
+                "未知命令名: " + commandName + "（JS 与原生命令表不一致）");
+        }
+    }
+
     @Override
     public void receiveCommand(@NonNull NativePDFView root, int commandId, @Nullable ReadableArray args) {
         android.util.Log.d("NativePDFViewManager", "收到命令: " + commandId + ", 参数数量: " + (args != null ? args.size() : 0));

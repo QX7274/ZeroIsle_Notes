@@ -102,6 +102,28 @@ public class NativePagedNoteViewManager extends SimpleViewManager<NativePagedNot
             .build();
     }
 
+    /**
+     * 按**命令名**接收命令。
+     *
+     * 为什么必须有这个重写：JS 侧现在下发的是命令名（getCommandName），
+     * 而 RN 的 ViewManager.receiveCommand(View, String, ReadableArray) 默认只把命令转给 delegate；
+     * 本项目的 ViewManager 没有 delegate，于是字符串命令会被**静默丢弃**。
+     * 这里把名字映射回命令号，再复用同一套 switch，保证只有一份实现。
+     */
+    @Override
+    public void receiveCommand(@NonNull NativePagedNoteView root, @Nullable String commandName, @Nullable ReadableArray args) {
+        if (commandName == null) {
+            return;
+        }
+        Map<String, Integer> commands = getCommandsMap();
+        if (commands != null && commands.containsKey(commandName)) {
+            receiveCommand(root, commands.get(commandName), args);
+        } else {
+            android.util.Log.w("NativePagedNoteViewManager",
+                "未知命令名: " + commandName + "（JS 与原生命令表不一致）");
+        }
+    }
+
     @Override
     public void receiveCommand(@NonNull NativePagedNoteView root, int commandId, @Nullable ReadableArray args) {
         switch (commandId) {
