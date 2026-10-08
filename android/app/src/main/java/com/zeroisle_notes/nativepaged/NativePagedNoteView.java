@@ -989,7 +989,10 @@ public class NativePagedNoteView extends ScrollView {
                 }
 
                 if (shouldErase) {
+                    StrokeData erased = pageData.strokes.get(i);
                     pageData.strokes.remove(i);
+                    pushHistoryAction(pageData, new HistoryAction(
+                        HistoryAction.Type.REMOVE_STROKE, erased, i));
                     invalidate();
                     Log.d(TAG, "擦除笔迹 " + i);
                     break; // 每次只擦除一个笔迹
@@ -1359,6 +1362,8 @@ public class NativePagedNoteView extends ScrollView {
                 String strokeId = UUID.randomUUID().toString();
                 StrokeData newStroke = new StrokeData(strokeId, currentPath, currentPaint, new ArrayList<>());
                 pageData.strokes.add(newStroke);
+                pushHistoryAction(pageData, new HistoryAction(
+                    HistoryAction.Type.ADD_STROKE, newStroke, pageData.strokes.size() - 1));
 
                 // 发送笔迹提交事件
                 WritableMap event = Arguments.createMap();
@@ -1426,6 +1431,8 @@ public class NativePagedNoteView extends ScrollView {
             if (currentPath != null && currentPaint != null && currentStrokePoints.size() > 1) {
                 StrokeData newStroke = new StrokeData(currentPath, currentPaint, new ArrayList<>(currentStrokePoints));
                 pageData.strokes.add(newStroke);
+                pushHistoryAction(pageData, new HistoryAction(
+                    HistoryAction.Type.ADD_STROKE, newStroke, pageData.strokes.size() - 1));
 
                 WritableMap event = Arguments.createMap();
                 event.putString("strokeId", UUID.randomUUID().toString());
@@ -1582,15 +1589,15 @@ public class NativePagedNoteView extends ScrollView {
         }
         if (removed.isEmpty()) return;
 
-        // 与既有撤销实现对齐：本项目没有独立的 HistoryAction 体系，
-        // 撤销/重做就是「strokes 列表 + redoStack」的进出。
-        // 删除 = 从 strokes 移出并压入 redoStack（撤销时按序放回）。
-        if (pageData.redoStack == null) {
-            pageData.redoStack = new ArrayList<>();
-        }
+        // 删除必须记成 REMOVE_STROKE 动作并带上原下标：旧实现只把笔迹压进 redoStack，
+        // 而 undo() 是无条件弹 strokes 末尾——删除后按撤销会撤掉末尾那条无辜笔迹，
+        // 真正被删的反而回不来。
         for (StrokeData s : removed) {
-            pageData.strokes.remove(s);
-            pageData.redoStack.add(s);
+            int at = pageData.strokes.indexOf(s);
+            if (at < 0) continue;
+            pageData.strokes.remove(at);
+            pushHistoryAction(pageData, new HistoryAction(
+                HistoryAction.Type.REMOVE_STROKE, s, at));
         }
 
         clearSelectionOnAllPages();
@@ -1624,10 +1631,9 @@ public class NativePagedNoteView extends ScrollView {
         for (StrokeData c : copies) {
             pageData.strokes.add(c);
             newIds.add(c.id);
-        }
-        // 复制属于「新增」：加入 strokes 即可，撤销时会按既有的栈语义把它弹出。
-        if (pageData.redoStack != null) {
-            pageData.redoStack.clear();
+            // 每条副本各记一个 ADD_STROKE，撤销才能精确移除对应的那一条
+            pushHistoryAction(pageData, new HistoryAction(
+                HistoryAction.Type.ADD_STROKE, c, pageData.strokes.size() - 1));
         }
 
         pageViews.get(currentPage).invalidate();
@@ -1954,31 +1960,105 @@ public class NativePagedNoteView extends ScrollView {
         }
     }
 
+    /**
+     * 记录一条历史动作。
+     * 任何新的用户操作都会让「重做」失效（redoStack 清空），这是标准撤销语义。
+     */
+    private void pushHistoryAction(PageData pageData, HistoryAction action) {
+        if (pageData == null || action == null) return;
+        if (pageData.undoStack == null) pageData.undoStack = new ArrayList<>();
+        if (pageData.redoStack == null) pageData.redoStack = new ArrayList<>();
+        pageData.undoStack.add(action);
+        pageData.redoStack.clear();
+    }
+
+    /**
+     * 撤销：取出最后一个动作并执行其逆操作，然后压入 redoStack。
+     * 三种动作都要处理——旧实现只做「弹 strokes 末尾」，删除/清空一律撤不回来。
+     */
     public void undo() {
         if (currentPage >= 0 && currentPage < pageViews.size()) {
             PageView pageView = pageViews.get(currentPage);
             PageData pageData = pages.get(currentPage);
-            if (!pageData.strokes.isEmpty()) {
-                if (pageData.redoStack == null) pageData.redoStack = new java.util.ArrayList<>();
-                StrokeData last = pageData.strokes.remove(pageData.strokes.size() - 1);
-                pageData.redoStack.add(last);
-                pageView.invalidate();
+            if (pageData.undoStack == null || pageData.undoStack.isEmpty()) {
+                sendHistoryStateChangeEvent();
+                return;
             }
+            HistoryAction action = pageData.undoStack.remove(pageData.undoStack.size() - 1);
+            applyUndo(pageData, action);
+            if (pageData.redoStack == null) pageData.redoStack = new ArrayList<>();
+            pageData.redoStack.add(action);
+            pageView.invalidate();
         }
         sendHistoryStateChangeEvent();
     }
 
+    /** 重做：与 undo 对称，执行一次原动作后压回 undoStack。 */
     public void redo() {
         if (currentPage >= 0 && currentPage < pageViews.size()) {
             PageView pageView = pageViews.get(currentPage);
             PageData pageData = pages.get(currentPage);
-            if (pageData.redoStack != null && !pageData.redoStack.isEmpty()) {
-                StrokeData s = pageData.redoStack.remove(pageData.redoStack.size() - 1);
-                pageData.strokes.add(s);
-                pageView.invalidate();
+            if (pageData.redoStack == null || pageData.redoStack.isEmpty()) {
+                sendHistoryStateChangeEvent();
+                return;
             }
+            HistoryAction action = pageData.redoStack.remove(pageData.redoStack.size() - 1);
+            applyRedo(pageData, action);
+            if (pageData.undoStack == null) pageData.undoStack = new ArrayList<>();
+            pageData.undoStack.add(action);
+            pageView.invalidate();
         }
         sendHistoryStateChangeEvent();
+    }
+
+    private void applyUndo(PageData pageData, HistoryAction action) {
+        switch (action.type) {
+            case ADD_STROKE:
+                // 撤销新增：精确移除这条（而不是列表末尾）
+                if (action.strokeData != null) {
+                    pageData.strokes.remove(action.strokeData);
+                }
+                break;
+            case REMOVE_STROKE:
+                // 撤销删除/擦除：按原下标插回原位
+                if (action.strokeData != null && !pageData.strokes.contains(action.strokeData)) {
+                    int at = action.index;
+                    if (at < 0 || at > pageData.strokes.size()) at = pageData.strokes.size();
+                    pageData.strokes.add(at, action.strokeData);
+                }
+                break;
+            case CLEAR:
+                // 撤销清空：整段还原（记录时已按原顺序保存）
+                if (action.clearedStrokes != null) {
+                    pageData.strokes.clear();
+                    pageData.strokes.addAll(action.clearedStrokes);
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void applyRedo(PageData pageData, HistoryAction action) {
+        switch (action.type) {
+            case ADD_STROKE:
+                if (action.strokeData != null && !pageData.strokes.contains(action.strokeData)) {
+                    int at = action.index;
+                    if (at < 0 || at > pageData.strokes.size()) at = pageData.strokes.size();
+                    pageData.strokes.add(at, action.strokeData);
+                }
+                break;
+            case REMOVE_STROKE:
+                if (action.strokeData != null) {
+                    pageData.strokes.remove(action.strokeData);
+                }
+                break;
+            case CLEAR:
+                pageData.strokes.clear();
+                break;
+            default:
+                break;
+        }
     }
 
     /**
@@ -1992,9 +2072,14 @@ public class NativePagedNoteView extends ScrollView {
     public void clear(String scope) {
         String normalized = (scope == null || scope.isEmpty()) ? "current_page" : scope;
         if ("entire_document".equals(normalized) || "all".equals(normalized) || "document".equals(normalized)) {
+            // 整档清空：逐页各记一条 CLEAR，撤销时按页还原（不能只记当前页，否则别的页永远回不来）
             for (int i = 0; i < pages.size(); i++) {
-                pages.get(i).strokes.clear();
-                pages.get(i).redoStack.clear();
+                PageData pageData = pages.get(i);
+                if (!pageData.strokes.isEmpty()) {
+                    pushHistoryAction(pageData, new HistoryAction(
+                        new ArrayList<>(pageData.strokes)));
+                    pageData.strokes.clear();
+                }
                 if (i < pageViews.size()) {
                     pageViews.get(i).invalidate();
                 }
@@ -2002,8 +2087,11 @@ public class NativePagedNoteView extends ScrollView {
         } else {
             if (currentPage >= 0 && currentPage < pageViews.size()) {
                 PageData pageData = pages.get(currentPage);
-                pageData.strokes.clear();
-                pageData.redoStack.clear();
+                if (!pageData.strokes.isEmpty()) {
+                    pushHistoryAction(pageData, new HistoryAction(
+                        new ArrayList<>(pageData.strokes)));
+                    pageData.strokes.clear();
+                }
                 pageViews.get(currentPage).invalidate();
             }
         }
@@ -2016,7 +2104,7 @@ public class NativePagedNoteView extends ScrollView {
         boolean canRedo = false;
         if (currentPage >= 0 && currentPage < pages.size()) {
             PageData pageData = pages.get(currentPage);
-            canUndo = !pageData.strokes.isEmpty();
+            canUndo = pageData.undoStack != null && !pageData.undoStack.isEmpty();
             canRedo = pageData.redoStack != null && !pageData.redoStack.isEmpty();
         }
         WritableMap event = Arguments.createMap();
@@ -2113,9 +2201,8 @@ public class NativePagedNoteView extends ScrollView {
             TextStrokeData stroke = new TextStrokeData(
                 text, x, y, fontSize, colorHex, bold, italic, underline, alignment);
             pageData.strokes.add(stroke);
-            if (pageData.redoStack != null) {
-                pageData.redoStack.clear();
-            }
+            pushHistoryAction(pageData, new HistoryAction(
+                HistoryAction.Type.ADD_STROKE, stroke, pageData.strokes.size() - 1));
 
             pageView.invalidate();
             sendHistoryStateChangeEvent();
@@ -2167,7 +2254,8 @@ public class NativePagedNoteView extends ScrollView {
             float y = (pageH - targetH) / 2f;
             StrokeData imageStroke = Stroke.image(bitmap, x, y, targetW, targetH);
             pageData.strokes.add(imageStroke);
-            if (pageData.redoStack != null) pageData.redoStack.clear();
+            pushHistoryAction(pageData, new HistoryAction(
+                HistoryAction.Type.ADD_STROKE, imageStroke, pageData.strokes.size() - 1));
             pageView.invalidate();
         } catch (Exception e) {
             Log.e(TAG, "addImage 失败", e);
@@ -2609,7 +2697,35 @@ public class NativePagedNoteView extends ScrollView {
     // 数据类
     static class PageData {
         List<StrokeData> strokes = new ArrayList<>();
-        List<StrokeData> redoStack = new ArrayList<>();
+        // 历史改为「动作栈」：undoStack 记录用户做过的动作，redoStack 记录被撤销的动作。
+        // 旧实现只有 redoStack（strokes↔redoStack 末尾进出），无法表达「删除」——
+        // 删除后按撤销会把列表末尾那条无辜笔迹弹掉，而真正被删的永远回不来。
+        List<HistoryAction> undoStack = new ArrayList<>();
+        List<HistoryAction> redoStack = new ArrayList<>();
+    }
+
+    /** 一条可撤销的历史动作。REMOVE/CLEAR 均保留被移除的笔迹与原始下标，以支持精确还原。 */
+    static class HistoryAction {
+        enum Type { ADD_STROKE, REMOVE_STROKE, CLEAR }
+
+        final Type type;
+        final StrokeData strokeData;
+        final int index;
+        final List<StrokeData> clearedStrokes;
+
+        HistoryAction(Type type, StrokeData strokeData, int index) {
+            this.type = type;
+            this.strokeData = strokeData;
+            this.index = index;
+            this.clearedStrokes = null;
+        }
+
+        HistoryAction(List<StrokeData> clearedStrokes) {
+            this.type = Type.CLEAR;
+            this.strokeData = null;
+            this.index = -1;
+            this.clearedStrokes = clearedStrokes;
+        }
     }
 
     static class StrokeData {

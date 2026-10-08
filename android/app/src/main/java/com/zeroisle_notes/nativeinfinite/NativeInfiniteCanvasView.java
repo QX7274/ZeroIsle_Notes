@@ -65,6 +65,8 @@ public class NativeInfiniteCanvasView extends View {
     private boolean isInitialViewportSet = false;
 
     private List<StrokeData> strokes;
+    // 当前套索选中的笔迹 id：供工具栏的「删除/复制/移动/完成」使用
+    private List<String> currentSelection;
     private Path currentPath;
     private Paint currentPaint;
     private List<PointF> currentStrokePoints;
@@ -568,7 +570,8 @@ public class NativeInfiniteCanvasView extends View {
 
             if (shouldErase) {
                 StrokeData removedStroke = strokes.remove(i);
-                addToUndoStack(new HistoryAction(HistoryAction.Type.REMOVE_STROKE, removedStroke));
+                // 记下原下标，撤销时要放回原层次位置（否则恢复成最上层，盖住别的笔迹）
+                addToUndoStack(new HistoryAction(HistoryAction.Type.REMOVE_STROKE, removedStroke, i));
                 invalidate();
                 Log.d("NativeInfiniteCanvas", "擦除笔迹 " + i);
                 break; // 每次只擦除一个笔迹
@@ -765,6 +768,11 @@ public class NativeInfiniteCanvasView extends View {
             lassoPaint.setColor(Color.GREEN);
             lassoPaint.setAlpha(51); // 20% alpha
 
+            // 记住选中集合：工具栏的「删除/复制/移动/完成」需要据此操作。
+            // 此前只在事件里报给 JS、本地不留状态，于是 JS 即使想操作也无从下手
+            // （分页画布已修，无限画布此前一直缺这条回路）。
+            currentSelection = new ArrayList<>(selectedStrokeIds);
+
             // 把选中的笔迹 id 上报给 JS
             WritableMap event = Arguments.createMap();
             com.facebook.react.bridge.WritableArray ids = Arguments.createArray();
@@ -775,14 +783,18 @@ public class NativeInfiniteCanvasView extends View {
             event.putInt("count", selectedStrokeIds.size());
             sendEvent("onStrokesSelected", event);
 
-            // 3秒后清除选择
+            // 3秒后清除选择（若期间已被「删除/复制」消费，则不再重复清理）
             postDelayed(() -> {
-                lassoPath = null;
-                lassoPaint = null;
-                invalidate();
+                if (currentSelection != null && !currentSelection.isEmpty()) {
+                    currentSelection = null;
+                    lassoPath = null;
+                    lassoPaint = null;
+                    invalidate();
+                }
             }, 3000);
         } else {
             // 没有选中任何内容，立即清除
+            currentSelection = null;
             lassoPath = null;
             lassoPaint = null;
             invalidate();
@@ -1565,10 +1577,22 @@ public class NativeInfiniteCanvasView extends View {
 
             switch (action.type) {
                 case ADD_STROKE:
-                    // 撤销添加笔迹
-                    if (!strokes.isEmpty()) {
-                        StrokeData removedStroke = strokes.remove(strokes.size() - 1);
-                        action.strokeData = removedStroke; // 保存以便重做
+                    // 撤销「新增」：必须移除**这一条**笔迹，而不是列表末尾那条。
+                    // 旧实现无脑 pop 末尾，只要之后又画了新笔迹，撤销删掉的就是别人的笔迹。
+                    if (action.strokeData != null) {
+                        strokes.remove(action.strokeData);
+                    }
+                    break;
+                case REMOVE_STROKE:
+                    // 撤销「删除/擦除」：放回原位置。
+                    // 这条分支以前**完全不存在**，于是删除后按撤销什么都不会发生，
+                    // 但 canUndo 仍报 true —— 按钮亮着却无反应。
+                    if (action.strokeData != null && !strokes.contains(action.strokeData)) {
+                        int at = action.index;
+                        if (at < 0 || at > strokes.size()) {
+                            at = strokes.size();
+                        }
+                        strokes.add(at, action.strokeData);
                     }
                     break;
                 case CLEAR:
@@ -1593,9 +1617,19 @@ public class NativeInfiniteCanvasView extends View {
 
             switch (action.type) {
                 case ADD_STROKE:
-                    // 重做添加笔迹
+                    // 重做「新增」：放回原来的层次位置（不只是追加到末尾）
+                    if (action.strokeData != null && !strokes.contains(action.strokeData)) {
+                        int at = action.index;
+                        if (at < 0 || at > strokes.size()) {
+                            at = strokes.size();
+                        }
+                        strokes.add(at, action.strokeData);
+                    }
+                    break;
+                case REMOVE_STROKE:
+                    // 重做「删除/擦除」：再次移除这一条
                     if (action.strokeData != null) {
-                        strokes.add(action.strokeData);
+                        strokes.remove(action.strokeData);
                     }
                     break;
                 case CLEAR:
@@ -1612,6 +1646,150 @@ public class NativeInfiniteCanvasView extends View {
             Log.d("NativeInfiniteCanvasView", "没有可重做的操作");
         }
         sendHistoryStateChangeEvent();
+    }
+
+    // ==================== 选中笔迹的操作（由工具栏按钮触发） ====================
+    //
+    // 与分页画布对齐：原生一直会上报 onStrokesSelected，但没有任何可操作通道，
+    // 工具栏只能把「删除/复制」显示成「暂不支持」。这里补齐四个基本操作并进入撤销栈。
+
+    /** 按 id 查找笔迹；找不到返回 null。 */
+    private StrokeData findStrokeById(String strokeId) {
+        if (strokeId == null) return null;
+        for (StrokeData s : strokes) {
+            if (strokeId.equals(s.id)) return s;
+        }
+        return null;
+    }
+
+    /**
+     * 删除选中的笔迹。
+     * 只删传进来的 id（而不是「当前选中集合」），这样即便 3 秒自动清除先触发，
+     * 用户刚才点的那次删除仍然作用在他看到的那批笔迹上。
+     */
+    public void deleteSelectedStrokes(String strokeIdsJson) {
+        List<String> ids = parseStrokeIds(strokeIdsJson);
+        if (ids.isEmpty()) return;
+
+        List<StrokeData> removed = new ArrayList<>();
+        for (String id : ids) {
+            StrokeData s = findStrokeById(id);
+            if (s != null) removed.add(s);
+        }
+        if (removed.isEmpty()) return;
+
+        for (StrokeData s : removed) {
+            // 先取下标再移除，否则恢复时会插到末尾、层次错乱
+            int at = strokes.indexOf(s);
+            strokes.remove(s);
+            addToUndoStack(new HistoryAction(HistoryAction.Type.REMOVE_STROKE, s, at));
+        }
+        clearSelection();
+        invalidate();
+        sendHistoryStateChangeEvent();
+        Log.d("NativeInfiniteCanvas", "删除选中笔迹 " + removed.size() + " 条");
+    }
+
+    /**
+     * 复制选中的笔迹，副本整体偏移 (dx, dy)。
+     * 偏移是为了避免与原笔迹完全重叠，否则用户会以为「复制没反应」。
+     */
+    public void duplicateSelectedStrokes(String strokeIdsJson, float dx, float dy) {
+        List<String> ids = parseStrokeIds(strokeIdsJson);
+        if (ids.isEmpty()) return;
+
+        List<StrokeData> copies = new ArrayList<>();
+        for (String id : ids) {
+            StrokeData src = findStrokeById(id);
+            if (src == null) continue;
+            Path moved = new Path(src.path);
+            moved.offset(dx, dy);
+            StrokeData copy = new StrokeData(moved, src.paint);
+            // 图片元素的位置是独立字段，必须一并平移，否则副本会与原图重叠
+            if (src.bitmap != null) {
+                copy.bitmap = src.bitmap;
+                copy.x = src.x + dx;
+                copy.y = src.y + dy;
+                copy.w = src.w;
+                copy.h = src.h;
+            }
+            copies.add(copy);
+        }
+        if (copies.isEmpty()) return;
+
+        List<String> newIds = new ArrayList<>();
+        for (StrokeData c : copies) {
+            strokes.add(c);
+            newIds.add(c.id);
+            addToUndoStack(new HistoryAction(HistoryAction.Type.ADD_STROKE, c));
+        }
+        invalidate();
+        sendHistoryStateChangeEvent();
+
+        // 选中态转移到副本：符合「刚复制出来的就是接下来要操作的对象」
+        currentSelection = newIds;
+        WritableMap event = Arguments.createMap();
+        com.facebook.react.bridge.WritableArray arr = Arguments.createArray();
+        for (String id : newIds) arr.pushString(id);
+        event.putArray("strokeIds", arr);
+        event.putInt("count", newIds.size());
+        sendEvent("onStrokesSelected", event);
+
+        Log.d("NativeInfiniteCanvas", "复制选中笔迹 " + copies.size() + " 条");
+    }
+
+    /** 平移选中的笔迹（增量位移）。 */
+    public void moveSelectedStrokes(String strokeIdsJson, float dx, float dy) {
+        List<String> ids = parseStrokeIds(strokeIdsJson);
+        if (ids.isEmpty()) return;
+
+        int moved = 0;
+        for (String id : ids) {
+            StrokeData s = findStrokeById(id);
+            if (s == null) continue;
+            Path movedPath = new Path(s.path);
+            movedPath.offset(dx, dy);
+            s.path = movedPath;
+            if (s.bitmap != null) {
+                s.x += dx;
+                s.y += dy;
+            }
+            moved++;
+        }
+        if (moved == 0) return;
+        invalidate();
+        Log.d("NativeInfiniteCanvas", "平移选中笔迹 " + moved + " 条 dx=" + dx + " dy=" + dy);
+    }
+
+    /** 结束选择：清掉高亮与选中集合。 */
+    public void clearStrokeSelection() {
+        clearSelection();
+        invalidate();
+    }
+
+    private void clearSelection() {
+        currentSelection = null;
+        lassoPath = null;
+        lassoPaint = null;
+    }
+
+    /** 把 JS 传来的 id 数组（JSON 字符串或逗号分隔）解析成列表，脏数据一律忽略。 */
+    private List<String> parseStrokeIds(String raw) {
+        List<String> ids = new ArrayList<>();
+        if (raw == null || raw.isEmpty()) return ids;
+        try {
+            org.json.JSONArray arr = new org.json.JSONArray(raw);
+            for (int i = 0; i < arr.length(); i++) {
+                String id = arr.optString(i, null);
+                if (id != null && !id.isEmpty()) ids.add(id);
+            }
+        } catch (org.json.JSONException e) {
+            for (String part : raw.split(",")) {
+                String id = part.trim();
+                if (!id.isEmpty()) ids.add(id);
+            }
+        }
+        return ids;
     }
 
     public void clear() {
@@ -1641,6 +1819,12 @@ public class NativeInfiniteCanvasView extends View {
     }
 
     private void addToUndoStack(HistoryAction action) {
+        // 新增类动作补记下标：撤销「新增」后重做要放回原位置，
+        // 只做 append 会让重做出来的笔迹跳到最上层，层次与原状不同。
+        if (action.type == HistoryAction.Type.ADD_STROKE
+                && action.strokeData != null && action.index < 0) {
+            action.index = strokes.indexOf(action.strokeData);
+        }
         undoStack.add(action);
 
         // 清空重做栈（新操作会使重做栈失效）
@@ -1992,11 +2176,25 @@ public class NativeInfiniteCanvasView extends View {
 
         Type type;
         StrokeData strokeData;
+
+        /**
+         * 笔迹被移除前在 strokes 里的位置。
+         * 撤销删除时必须放回原位置，否则重绘层次（后画者在上）会乱：
+         * 把一条底层笔迹恢复成最上层，观感就是「撤销后图形盖住了别的东西」。
+         * -1 表示未记录（回退为追加到末尾）。
+         */
+        int index = -1;
         List<StrokeData> clearedStrokes;
 
         HistoryAction(Type type, StrokeData strokeData) {
             this.type = type;
             this.strokeData = strokeData;
+        }
+
+        HistoryAction(Type type, StrokeData strokeData, int index) {
+            this.type = type;
+            this.strokeData = strokeData;
+            this.index = index;
         }
 
         HistoryAction(Type type, List<StrokeData> clearedStrokes) {

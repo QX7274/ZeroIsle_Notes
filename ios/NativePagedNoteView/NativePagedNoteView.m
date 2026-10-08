@@ -59,8 +59,9 @@
 @property (nonatomic, strong) CAShapeLayer *laserLayer;
 @property (nonatomic, strong) NSTimer *laserFadeTimer;
 
-// 撤销/重做相关
-@property (nonatomic, strong) NSMutableArray *redoStack;
+// 撤销/重做相关：历史**按页持有**（页字典的 @"history" 撤销动作栈 / @"redo" 重做动作栈）。
+// 注意这里**故意没有**全局栈：全局重做栈配合「按当前页撤销」会让
+// 「第 0 页撤销、切到第 1 页重做」把笔迹落到错误的页面上。
 
 // 视口与手势状态
 @property (nonatomic, assign) CGFloat viewportX;
@@ -126,9 +127,6 @@
     _erasedStrokeIds = [NSMutableSet set];
     _selectedStrokes = [NSMutableArray array];
 
-    // 初始化重做栈
-    _redoStack = [NSMutableArray array];
-
     // 图片解码缓存：按 uri/base64 命中，容量按「张数」而不是字节粗略限制即可，
     // 目的在于同一张图在连续重绘中只解码一次。
     _imageCache = [[NSCache alloc] init];
@@ -157,7 +155,114 @@
 
 - (void)setupPages
 {
-  self.pages = [NSMutableArray arrayWithObject:@{@"strokes": [NSMutableArray array]}];
+  self.pages = [NSMutableArray arrayWithObject:[self emptyPageDictionary]];
+}
+
+/** 新页字典：笔迹数组 + 该页自己的撤销/重做动作栈。 */
+- (NSMutableDictionary *)emptyPageDictionary
+{
+  return [@{
+    @"strokes": [NSMutableArray array],
+    @"history": [NSMutableArray array],
+    @"redo": [NSMutableArray array]
+  } mutableCopy];
+}
+
+/**
+ * 取某页的可变字典。
+ *
+ * 页字典在 setupPages/addNewPage/importNote 里都是不可变 NSDictionary
+ * （字面量默认不可变），往上面写 @"history" 会直接抛异常，
+ * 所以写入前统一走这里 mutableCopy 并替换回 self.pages。
+ */
+- (NSMutableDictionary *)mutablePageAtIndex:(NSInteger)index
+{
+  if (index < 0 || index >= (NSInteger)self.pages.count) return nil;
+  id page = self.pages[(NSUInteger)index];
+  if ([page isKindOfClass:[NSMutableDictionary class]]) return page;
+  NSMutableDictionary *mutable = [page isKindOfClass:[NSDictionary class]] ? [page mutableCopy] : [NSMutableDictionary dictionary];
+  self.pages[(NSUInteger)index] = mutable;
+  return mutable;
+}
+
+/** 取某页的笔迹数组（顺带保证页字典可变）。 */
+- (NSMutableArray *)pageStrokesAtIndex:(NSInteger)index
+{
+  NSMutableDictionary *page = [self mutablePageAtIndex:index];
+  if (!page) return nil;
+  NSMutableArray *strokes = page[@"strokes"];
+  if (![strokes isKindOfClass:[NSMutableArray class]]) {
+    strokes = [NSMutableArray array];
+    page[@"strokes"] = strokes;
+  }
+  return strokes;
+}
+
+/** 取某页的撤销动作栈；老文档没有 @"history" 键时懒创建（保证旧数据兼容）。 */
+- (NSMutableArray *)undoStackForPage:(NSInteger)index
+{
+  NSMutableDictionary *page = [self mutablePageAtIndex:index];
+  if (!page) return nil;
+  NSMutableArray *stack = page[@"history"];
+  if (![stack isKindOfClass:[NSMutableArray class]]) {
+    stack = [NSMutableArray array];
+    page[@"history"] = stack;
+  }
+  return stack;
+}
+
+/** 取某页的重做动作栈；老文档没有 @"redo" 键时懒创建。 */
+- (NSMutableArray *)redoHistoryForPage:(NSInteger)index
+{
+  NSMutableDictionary *page = [self mutablePageAtIndex:index];
+  if (!page) return nil;
+  NSMutableArray *stack = page[@"redo"];
+  if (![stack isKindOfClass:[NSMutableArray class]]) {
+    stack = [NSMutableArray array];
+    page[@"redo"] = stack;
+  }
+  return stack;
+}
+
+/**
+ * 统一入栈：动作加入该页历史，并清空该页重做栈（任何新操作都让重做失效）。
+ *
+ * 动作是「操作本身的描述」，undo 执行其逆操作、redo 重新执行它，
+ * 因此 redo 不需要构造逆动作，直接把同一个 action 压回去即可。
+ */
+- (void)pushHistoryAction:(NSDictionary *)action onPage:(NSInteger)pageIndex
+{
+  if (![action isKindOfClass:[NSDictionary class]]) return;
+  NSMutableArray *history = [self undoStackForPage:pageIndex];
+  NSMutableArray *redo = [self redoHistoryForPage:pageIndex];
+  if (!history || !redo) return;
+  [history addObject:action];
+  [redo removeAllObjects];
+}
+
+/** 只让重做失效、不记历史（用于移动这类「原地改变外观」的操作）。 */
+- (void)clearRedoHistoryForPage:(NSInteger)pageIndex
+{
+  NSMutableArray *redo = [self redoHistoryForPage:pageIndex];
+  [redo removeAllObjects];
+}
+
+/** 按 id 查笔迹下标；找不到返回 -1。 */
+- (NSInteger)indexOfStrokeWithId:(NSString *)strokeId inStrokes:(NSArray *)strokes
+{
+  if (![strokeId isKindOfClass:[NSString class]] || strokeId.length == 0) return -1;
+  for (NSInteger i = 0; i < (NSInteger)strokes.count; i++) {
+    NSDictionary *stroke = strokes[(NSUInteger)i];
+    if ([stroke isKindOfClass:[NSDictionary class]] && [stroke[@"id"] isEqual:strokeId]) return i;
+  }
+  return -1;
+}
+
+static NSInteger ZIPagedClampIndex(NSInteger idx, NSInteger count)
+{
+  if (idx < 0) return 0;
+  if (idx > count) return count;
+  return idx;
 }
 
 // 尺寸变化时重建覆盖层（网格/标尺按 bounds 生成，需跟随布局）
@@ -403,8 +508,7 @@ static const CGFloat kUnifiedMaxScale = 4.0;
 - (void)endStroke
 {
   if (self.currentStroke && self.currentStroke.count > 1) {
-    NSMutableDictionary *page = self.pages[self.currentPage];
-    NSMutableArray *strokes = page[@"strokes"];
+    NSMutableArray *strokes = [self pageStrokesAtIndex:self.currentPage];
 
     // 每条内容都要带稳定字符串 id：JS 的选中操作通道只接受 string id
     // （serializeStrokeIds 会把数字过滤掉），没有 id 就无从删除/移动/复制。
@@ -417,8 +521,9 @@ static const CGFloat kUnifiedMaxScale = 4.0;
       @"tool": self.currentTool
     }];
 
-    // 清空重做栈，因为添加了新的笔迹
-    [self.redoStack removeAllObjects];
+    // 记录 add 动作（pushHistoryAction 内部负责清空本页重做栈）。
+    [self pushHistoryAction:@{ @"type": @"add", @"id": strokeId, @"index": @(strokes.count - 1) }
+                     onPage:self.currentPage];
 
     if (self.onStrokeCommitted) {
       self.onStrokeCommitted(@{@"strokeId": strokeId});
@@ -1229,40 +1334,119 @@ static const CGFloat kUnifiedMaxScale = 4.0;
 }
 
 - (void)addNewPage {
-  [self.pages addObject:@{@"strokes": [NSMutableArray array]}];
+  [self.pages addObject:[self emptyPageDictionary]];
   if (self.onPageAdded) {
     self.onPageAdded(@{@"totalPages": @(self.pages.count)});
   }
 }
 
+/**
+ * 撤销：弹出本页最后一条**动作**，执行它的逆操作，再把该动作压进本页重做栈。
+ *
+ * 此前这里是「把笔迹数组末尾一条移到重做栈」——它只在「末尾连续添加」时看起来对：
+ *  - 删除选中笔迹后撤销，撤回的是列表末尾那条无辜的笔迹，真正删掉的永远回不来；
+ *  - canUndo 只看「本页有笔迹」，于是删除后按钮依然亮着、点了没反应。
+ * 现在三类动作（add / remove / clear）都记进本页 history，撤销按动作语义执行。
+ */
 - (void)undo {
-  NSMutableDictionary *page = self.pages[self.currentPage];
-  NSMutableArray *strokes = page[@"strokes"];
-  if (strokes.count > 0) {
-    // 将最后一个笔迹移到重做栈
-    NSDictionary *lastStroke = [strokes lastObject];
-    [self.redoStack addObject:lastStroke];
-    [strokes removeLastObject];
-    // 撤销可能撤掉的是文本/图片条目，必须重建内容层而不是只 setNeedsDisplay。
-    [self rebuildStrokeLayers];
-    [self.metalView setNeedsDisplay];
+  NSMutableArray *history = [self undoStackForPage:self.currentPage];
+  if (history.count == 0) {
+    [self emitHistoryStateChange];
+    return;
   }
+  NSDictionary *action = [history lastObject];
+  [history removeLastObject];
+
+  NSMutableArray *strokes = [self pageStrokesAtIndex:self.currentPage];
+  NSString *type = action[@"type"];
+  NSDictionary *redoAction = nil;
+
+  if ([type isEqualToString:@"add"]) {
+    // 逆操作＝把这条内容移除；redo 要放回原位，故把原下标与原记录都带上。
+    NSString *strokeId = action[@"id"];
+    NSInteger idx = [self indexOfStrokeWithId:strokeId inStrokes:strokes];
+    if (idx >= 0) {
+      NSDictionary *entry = strokes[(NSUInteger)idx];
+      [strokes removeObjectAtIndex:(NSUInteger)idx];
+      redoAction = @{ @"type": @"add", @"id": strokeId ?: @"", @"entry": entry, @"index": @(idx) };
+    } else {
+      redoAction = action;
+    }
+  } else if ([type isEqualToString:@"remove"]) {
+    // 逆操作＝把被删的内容按原下标插回。
+    NSDictionary *entry = action[@"entry"];
+    if ([entry isKindOfClass:[NSDictionary class]]) {
+      NSInteger idx = ZIPagedClampIndex([action[@"index"] integerValue], (NSInteger)strokes.count);
+      [strokes insertObject:entry atIndex:(NSUInteger)idx];
+    }
+    redoAction = action;
+  } else if ([type isEqualToString:@"clear"]) {
+    // 逆操作＝整段还原（清空可能同时清掉多页，entries 是按页分装的字典数组）。
+    NSArray *entries = action[@"entries"];
+    if ([entries isKindOfClass:[NSArray class]]) {
+      for (NSDictionary *item in entries) {
+        NSInteger pageIndex = [item[@"page"] integerValue];
+        NSArray *pageEntries = item[@"strokes"];
+        if (![pageEntries isKindOfClass:[NSArray class]]) continue;
+        NSMutableArray *pageStrokes = [self pageStrokesAtIndex:pageIndex];
+        [pageStrokes setArray:pageEntries];
+      }
+    }
+    redoAction = action;
+  }
+
+  NSMutableArray *redo = [self redoHistoryForPage:self.currentPage];
+  if (redoAction) [redo addObject:redoAction];
+
+  // 撤销可能改的是文本/图片条目，必须重建内容层而不是只 setNeedsDisplay。
+  [self rebuildStrokeLayers];
+  [self.metalView setNeedsDisplay];
   [self emitHistoryStateChange];
 }
 
+/** 重做：与 undo 对称 —— 弹出本页重做栈顶部动作，执行它，再压回本页历史。 */
 - (void)redo {
-  if (self.redoStack.count > 0) {
-    // 从重做栈中取出最后一个笔迹，添加回当前页面
-    NSDictionary *strokeToRedo = [self.redoStack lastObject];
-    [self.redoStack removeLastObject];
-
-    NSMutableDictionary *page = self.pages[self.currentPage];
-    NSMutableArray *strokes = page[@"strokes"];
-    [strokes addObject:strokeToRedo];
-
-    [self rebuildStrokeLayers];
-    [self.metalView setNeedsDisplay];
+  NSMutableArray *redo = [self redoHistoryForPage:self.currentPage];
+  if (redo.count == 0) {
+    [self emitHistoryStateChange];
+    return;
   }
+  NSDictionary *action = [redo lastObject];
+  [redo removeLastObject];
+
+  NSMutableArray *strokes = [self pageStrokesAtIndex:self.currentPage];
+  NSString *type = action[@"type"];
+
+  if ([type isEqualToString:@"add"]) {
+    NSDictionary *entry = action[@"entry"];
+    if ([entry isKindOfClass:[NSDictionary class]]) {
+      NSInteger idx = ZIPagedClampIndex([action[@"index"] integerValue], (NSInteger)strokes.count);
+      [strokes insertObject:entry atIndex:(NSUInteger)idx];
+    }
+  } else if ([type isEqualToString:@"remove"]) {
+    NSString *strokeId = action[@"id"];
+    if ([strokeId isKindOfClass:[NSString class]] && strokeId.length > 0) {
+      NSInteger idx = [self indexOfStrokeWithId:strokeId inStrokes:strokes];
+      if (idx >= 0) [strokes removeObjectAtIndex:(NSUInteger)idx];
+    } else {
+      NSDictionary *entry = action[@"entry"];
+      if ([entry isKindOfClass:[NSDictionary class]]) [strokes removeObject:entry];
+    }
+  } else if ([type isEqualToString:@"clear"]) {
+    NSArray *entries = action[@"entries"];
+    if ([entries isKindOfClass:[NSArray class]]) {
+      for (NSDictionary *item in entries) {
+        NSMutableArray *pageStrokes = [self pageStrokesAtIndex:[item[@"page"] integerValue]];
+        [pageStrokes removeAllObjects];
+      }
+    }
+  }
+
+  NSMutableArray *history = [self undoStackForPage:self.currentPage];
+  [history addObject:action];
+
+  [self rebuildStrokeLayers];
+  [self.metalView setNeedsDisplay];
   [self emitHistoryStateChange];
 }
 
@@ -1272,18 +1456,28 @@ static const CGFloat kUnifiedMaxScale = 4.0;
   NSString *scope = clearType.length > 0 ? clearType : @"current_page";
 
   if ([scope isEqualToString:@"current_page"]) {
-    // 清除当前页面
-    NSMutableDictionary *page = self.pages[self.currentPage];
-    page[@"strokes"] = [NSMutableArray array];
-    [self.redoStack removeAllObjects];
+    // 清除当前页面（清空前先把整段笔迹记进历史，撤销才能还原）。
+    NSMutableArray *strokes = [self pageStrokesAtIndex:self.currentPage];
+    if (strokes.count > 0) {
+      [self pushHistoryAction:@{
+        @"type": @"clear",
+        @"entries": @[ @{ @"page": @(self.currentPage), @"strokes": [strokes copy] } ]
+      } onPage:self.currentPage];
+    }
+    [strokes removeAllObjects];
     [self rebuildStrokeLayers];
     [self.metalView setNeedsDisplay];
   } else if ([scope isEqualToString:@"entire_document"] || [scope isEqualToString:@"all"]) {
-    // 清除整个文档
-    for (NSMutableDictionary *page in self.pages) {
-      page[@"strokes"] = [NSMutableArray array];
+    // 清除整个文档：逐页各记一条 clear（每页的 entries 只含本页，还原时按页写回）。
+    for (NSInteger i = 0; i < (NSInteger)self.pages.count; i++) {
+      NSMutableArray *strokes = [self pageStrokesAtIndex:i];
+      if (strokes.count == 0) continue;
+      [self pushHistoryAction:@{
+        @"type": @"clear",
+        @"entries": @[ @{ @"page": @(i), @"strokes": [strokes copy] } ]
+      } onPage:i];
+      [strokes removeAllObjects];
     }
-    [self.redoStack removeAllObjects];
     [self rebuildStrokeLayers];
     [self.metalView setNeedsDisplay];
   } else if ([scope isEqualToString:@"selected"]) {
@@ -1324,11 +1518,11 @@ static const CGFloat kUnifiedMaxScale = 4.0;
     fontSize = 16.0;
   }
 
-  NSMutableDictionary *page = self.pages[self.currentPage];
-  NSMutableArray *strokes = page[@"strokes"];
+  NSMutableArray *strokes = [self pageStrokesAtIndex:self.currentPage];
 
+  NSString *textId = [[NSUUID UUID] UUIDString];
   [strokes addObject:@{
-    @"id": [[NSUUID UUID] UUIDString],
+    @"id": textId,
     @"type": @"text",
     @"text": text,
     // position 是人类可读的旧字段，x/y 与 Android 导出的字段名一致，
@@ -1345,8 +1539,9 @@ static const CGFloat kUnifiedMaxScale = 4.0;
     @"tool": @"text"
   }];
 
-  // 新内容入栈后重做栈必须清空，否则「撤销→再画→重做」会重放出被撤销的旧内容。
-  [self.redoStack removeAllObjects];
+  // 新内容入栈后本页重做栈必须清空，否则「撤销→再画→重做」会重放出被撤销的旧内容。
+  [self pushHistoryAction:@{ @"type": @"add", @"id": textId, @"index": @(strokes.count - 1) }
+                   onPage:self.currentPage];
 
   if (self.onStrokeCommitted) {
     self.onStrokeCommitted(@{
@@ -1409,11 +1604,11 @@ static const CGFloat kUnifiedMaxScale = 4.0;
   CGFloat targetHeight = targetWidth * ratio;
   CGPoint center = [self pageCenterPoint];
 
-  NSMutableDictionary *page = self.pages[self.currentPage];
-  NSMutableArray *strokes = page[@"strokes"];
+  NSMutableArray *strokes = [self pageStrokesAtIndex:self.currentPage];
 
+  NSString *imageId = [[NSUUID UUID] UUIDString];
   NSMutableDictionary *entry = [@{
-    @"id": [[NSUUID UUID] UUIDString],
+    @"id": imageId,
     @"type": @"image",
     @"uri": imageUri,
     @"position": NSStringFromCGPoint(center),
@@ -1429,7 +1624,8 @@ static const CGFloat kUnifiedMaxScale = 4.0;
   if (meta[@"fileSize"]) entry[@"fileSize"] = meta[@"fileSize"];
 
   [strokes addObject:entry];
-  [self.redoStack removeAllObjects];
+  [self pushHistoryAction:@{ @"type": @"add", @"id": imageId, @"index": @(strokes.count - 1) }
+                   onPage:self.currentPage];
 
   if (self.onStrokeCommitted) {
     self.onStrokeCommitted(@{
@@ -1518,10 +1714,12 @@ static const CGFloat kUnifiedMaxScale = 4.0;
           [strokes addObject:entry];
         }
       }
-      [newPages addObject:@{ @"strokes": strokes }];
+      [newPages addObject:[@{ @"strokes": strokes,
+                              @"history": [NSMutableArray array],
+                              @"redo": [NSMutableArray array] } mutableCopy]];
     }
 
-    self.pages = newPages.count > 0 ? newPages : [@[ @{ @"strokes": [NSMutableArray array] } ] mutableCopy];
+    self.pages = newPages.count > 0 ? newPages : [@[ [self emptyPageDictionary] ] mutableCopy];
     if (current) self.currentPage = MAX(0, MIN((NSInteger)self.pages.count - 1, [current integerValue]));
     [self.metalView setNeedsDisplay];
 
@@ -1926,8 +2124,7 @@ static const CGFloat kUnifiedMaxScale = 4.0;
 
 - (void)eraseAtPoint:(CGPoint)point
 {
-  NSMutableDictionary *page = self.pages[self.currentPage];
-  NSMutableArray *strokes = page[@"strokes"];
+  NSMutableArray *strokes = [self pageStrokesAtIndex:self.currentPage];
 
   if (strokes.count == 0) return;
 
@@ -1968,7 +2165,11 @@ static const CGFloat kUnifiedMaxScale = 4.0;
     }
 
     if (shouldErase) {
+      NSDictionary *erased = strokes[(NSUInteger)i];
       [strokes removeObjectAtIndex:i];
+      // 记 remove 动作并带上原下标：撤销才能插回原位置（而不是变成列表末尾）。
+      [self pushHistoryAction:@{ @"type": @"remove", @"entry": erased ?: @{}, @"index": @(i) }
+                       onPage:self.currentPage];
       // 必须重建内容层：橡皮擦改的是数据，文本/图片层不会自己跟着变。
       [self rebuildStrokeLayers];
       [self.metalView setNeedsDisplay];
@@ -2284,11 +2485,11 @@ static void ZeroIsleConvertPagePathToScreen(void *info, const CGPathElement *ele
     NSLog(@"[NativePagedNoteView] 形状绘制完成");
 
     // 保存形状作为笔迹
-    NSMutableDictionary *page = self.pages[self.currentPage];
-    NSMutableArray *strokes = page[@"strokes"];
+    NSMutableArray *strokes = [self pageStrokesAtIndex:self.currentPage];
 
+    NSString *shapeId = [[NSUUID UUID] UUIDString];
     [strokes addObject:@{
-      @"id": [[NSUUID UUID] UUIDString],
+      @"id": shapeId,
       @"type": @"shape",
       @"shape": self.currentShape,
       @"startPoint": NSStringFromCGPoint(self.shapeStartPoint),
@@ -2297,6 +2498,8 @@ static void ZeroIsleConvertPagePathToScreen(void *info, const CGPathElement *ele
       @"width": @(self.currentStrokeWidth),
       @"tool": @"shape"
     }];
+    [self pushHistoryAction:@{ @"type": @"add", @"id": shapeId, @"index": @(strokes.count - 1) }
+                     onPage:self.currentPage];
 
     if (self.onStrokeCommitted) {
       self.onStrokeCommitted(@{
@@ -2647,19 +2850,24 @@ static void ZeroIsleConvertPagePathToScreen(void *info, const CGPathElement *ele
 /** 删除选中的笔迹。 */
 - (void)deleteSelectedStrokes:(NSString *)strokeIdsJson
 {
-  NSDictionary *page = self.pages[self.currentPage];
-  NSMutableArray *strokes = page[@"strokes"];
+  NSMutableArray *strokes = [self pageStrokesAtIndex:self.currentPage];
   NSArray<NSString *> *ids = [self strokeIdsFromJSON:strokeIdsJson];
   if (ids.count == 0 || strokes.count == 0) {
     return;
   }
 
   NSArray<NSNumber *> *indices = [self indicesOfStrokesWithIds:ids inPageStrokes:strokes];
+  // 从后往前删（indices 已降序），每条都带上删除前的原下标记进历史 ——
+  // 这是此前最大的缺陷：删除后撤销无效，撤掉的反而是列表末尾的无辜笔迹。
   for (NSNumber *index in indices) {
-    [strokes removeObjectAtIndex:[index unsignedIntegerValue]];
+    NSInteger at = [index integerValue];
+    if (at < 0 || at >= (NSInteger)strokes.count) continue;
+    NSDictionary *removed = strokes[(NSUInteger)at];
+    [strokes removeObjectAtIndex:(NSUInteger)at];
+    [self pushHistoryAction:@{ @"type": @"remove", @"entry": removed ?: @{}, @"index": @(at) }
+                     onPage:self.currentPage];
   }
   [self clearSelectionState];
-  [self.redoStack removeAllObjects];
   [self rebuildStrokeLayers];
   [self.metalView setNeedsDisplay];
   [self emitHistoryStateChange];
@@ -2669,8 +2877,7 @@ static void ZeroIsleConvertPagePathToScreen(void *info, const CGPathElement *ele
 /** 复制选中的笔迹（偏移 dx/dy，默认 16pt）。 */
 - (void)duplicateSelectedStrokes:(NSString *)strokeIdsJson dx:(CGFloat)dx dy:(CGFloat)dy
 {
-  NSDictionary *page = self.pages[self.currentPage];
-  NSMutableArray *strokes = page[@"strokes"];
+  NSMutableArray *strokes = [self pageStrokesAtIndex:self.currentPage];
   NSArray<NSString *> *ids = [self strokeIdsFromJSON:strokeIdsJson];
   if (ids.count == 0 || strokes.count == 0) {
     return;
@@ -2693,7 +2900,14 @@ static void ZeroIsleConvertPagePathToScreen(void *info, const CGPathElement *ele
   }
 
   [strokes addObjectsFromArray:copies];
-  [self.redoStack removeAllObjects];
+  // 每条副本各记一条 add 动作（下标即加入后的位置）。
+  for (NSInteger i = (NSInteger)strokes.count - (NSInteger)copies.count; i < (NSInteger)strokes.count; i++) {
+    NSDictionary *entry = strokes[(NSUInteger)i];
+    NSString *copyId = entry[@"id"];
+    if ([copyId isKindOfClass:[NSString class]]) {
+      [self pushHistoryAction:@{ @"type": @"add", @"id": copyId, @"index": @(i) } onPage:self.currentPage];
+    }
+  }
   [self rebuildStrokeLayers];
   [self.metalView setNeedsDisplay];
   [self emitHistoryStateChange];
@@ -2703,8 +2917,7 @@ static void ZeroIsleConvertPagePathToScreen(void *info, const CGPathElement *ele
 /** 移动选中的笔迹。 */
 - (void)moveSelectedStrokes:(NSString *)strokeIdsJson dx:(CGFloat)dx dy:(CGFloat)dy
 {
-  NSDictionary *page = self.pages[self.currentPage];
-  NSMutableArray *strokes = page[@"strokes"];
+  NSMutableArray *strokes = [self pageStrokesAtIndex:self.currentPage];
   NSArray<NSString *> *ids = [self strokeIdsFromJSON:strokeIdsJson];
   if (ids.count == 0 || strokes.count == 0) {
     return;
@@ -2730,7 +2943,8 @@ static void ZeroIsleConvertPagePathToScreen(void *info, const CGPathElement *ele
     return;
   }
 
-  [self.redoStack removeAllObjects];
+  // 移动是原地改变外观，不记历史（每次拖动都记会让撤销栈爆掉），只让重做失效。
+  [self clearRedoHistoryForPage:self.currentPage];
   [self rebuildStrokeLayers];
   [self.metalView setNeedsDisplay];
   [self emitHistoryStateChange];
@@ -2820,14 +3034,13 @@ static void ZeroIsleConvertPagePathToScreen(void *info, const CGPathElement *ele
   if (!self.onHistoryStateChange) {
     return;
   }
-  BOOL canUndo = NO;
-  if (self.currentPage >= 0 && self.currentPage < (NSInteger)self.pages.count) {
-    NSArray *strokes = self.pages[self.currentPage][@"strokes"];
-    canUndo = strokes.count > 0;
-  }
+  // canUndo/canRedo 必须看**本页的动作栈**，不能看「本页有没有笔迹」：
+  // 后者会让「删除后按钮仍亮着却点不动」，也无法在清空后正确置灰。
+  NSMutableArray *history = [self undoStackForPage:self.currentPage];
+  NSMutableArray *redo = [self redoHistoryForPage:self.currentPage];
   self.onHistoryStateChange(@{
-    @"canUndo": @(canUndo),
-    @"canRedo": @(self.redoStack.count > 0),
+    @"canUndo": @(history.count > 0),
+    @"canRedo": @(redo.count > 0),
     @"page": @(self.currentPage)
   });
 }
