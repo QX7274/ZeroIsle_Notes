@@ -87,6 +87,9 @@
 @property (nonatomic, strong) NSString *patternType;
 
 // 撤销/重做相关
+// undoStack：记录用户操作的动作历史（add/remove/clear），撤销时执行其逆操作。
+@property (nonatomic, strong) NSMutableArray *undoStack;
+// redoStack：只存「被撤销的动作」，由 undo 压入、redo 取出；不再是笔迹的暂存区。
 @property (nonatomic, strong) NSMutableArray *redoStack;
 
 // 手势状态
@@ -114,6 +117,8 @@
 - (NSDictionary *)importedEntryFromJSON:(NSDictionary *)raw entryId:(NSString *)entryId;
 - (void)updateLassoLayerFromWorldPath;
 - (UIBezierPath *)createShapePathFrom:(CGPoint)start to:(CGPoint)end shapeName:(NSString *)shapeName;
+- (void)pushHistoryAction:(NSDictionary *)action;
+- (void)clearRedoHistory;
 
 @end
 
@@ -143,7 +148,8 @@
     _hasPattern = NO;
     _patternType = nil;
 
-    // 初始化重做栈
+    // 初始化撤销/重做栈（undoStack 才是真正的动作历史，redoStack 只存被撤销的动作）
+    _undoStack = [NSMutableArray array];
     _redoStack = [NSMutableArray array];
     // 最低可行实现：使用 UIImageView 叠加层
     self.strokesImageView = [[UIImageView alloc] initWithFrame:self.bounds];
@@ -515,9 +521,44 @@ static const CGFloat kUnifiedMaxScale = 4.0;
     return;
   }
   self.onHistoryStateChange(@{
-    @"canUndo": @(self.strokeOrder.count > 0),
+    @"canUndo": @(self.undoStack.count > 0),
     @"canRedo": @(self.redoStack.count > 0)
   });
+}
+
+static NSInteger ZIClampHistoryIndex(NSInteger index, NSInteger count) {
+  if (index < 0) return 0;
+  if (index > count) return count;
+  return index;
+}
+
+/** 统一入栈：动作加入 undoStack，并清空 redoStack（任何新用户操作都让重做失效）。 */
+- (void)pushHistoryAction:(NSDictionary *)action
+{
+  if (![action isKindOfClass:[NSDictionary class]]) {
+    return;
+  }
+  if (!self.undoStack) {
+    self.undoStack = [NSMutableArray array];
+  }
+  if (!self.redoStack) {
+    self.redoStack = [NSMutableArray array];
+  }
+  NSMutableDictionary *entry = [action mutableCopy];
+  // add 动作若没带 index，按当前 strokeOrder 补记，撤销/重做才能插回原来的位置。
+  if ([entry[@"type"] isEqualToString:@"add"] && entry[@"index"] == nil) {
+    NSString *strokeId = entry[@"id"];
+    NSUInteger idx = [strokeId isKindOfClass:[NSString class]] ? [self.strokeOrder indexOfObject:strokeId] : NSNotFound;
+    entry[@"index"] = @(idx == NSNotFound ? self.strokeOrder.count : (NSInteger)idx);
+  }
+  [self.undoStack addObject:entry];
+  [self.redoStack removeAllObjects];
+}
+
+/** 只让重做失效（用于「不记历史」的原地操作，例如移动选中笔迹）。 */
+- (void)clearRedoHistory
+{
+  [self.redoStack removeAllObjects];
 }
 
 // MARK: - 工具实现
@@ -667,9 +708,8 @@ static const CGFloat kUnifiedMaxScale = 4.0;
 
     self.strokesDict[strokeId] = strokeData;
     [self.strokeOrder addObject:strokeId];
-
-    // A new stroke was added, so clear the redo stack
-    [self.redoStack removeAllObjects];
+    // 记录 add 动作（pushHistoryAction 内部负责清空 redoStack）。
+    [self pushHistoryAction:@{ @"type": @"add", @"id": strokeId }];
 
     if (self.onStrokeCommitted) {
       self.onStrokeCommitted(@{
@@ -751,6 +791,8 @@ static const CGFloat kUnifiedMaxScale = 4.0;
     }
 
     if (shouldErase) {
+      // 记录 remove 动作必须在移除之前：entry 与下标都要取「移除前」的值。
+      [self pushHistoryAction:@{ @"type": @"remove", @"entry": stroke, @"index": @(i) }];
       [self.strokesDict removeObjectForKey:strokeId];
       [self.strokeOrder removeObjectAtIndex:(NSUInteger)i];
       // 旧代码写成 [self.redrawStrokesOnOverlay]（点语法当消息用），
@@ -893,7 +935,7 @@ static const CGFloat kUnifiedMaxScale = 4.0;
     @"tool": @"text"
   };
   [self.strokeOrder addObject:textId];
-  [self.redoStack removeAllObjects];
+  [self pushHistoryAction:@{ @"type": @"add", @"id": textId }];
 
   if (self.onStrokeCommitted) {
     self.onStrokeCommitted(@{
@@ -949,11 +991,16 @@ static const CGFloat kUnifiedMaxScale = 4.0;
     return;
   }
   for (NSString *strokeId in ids) {
+    // 移除前记录 remove 动作（entry + 原下标），撤销才能插回原位。
+    NSDictionary *entry = self.strokesDict[strokeId];
+    NSUInteger idx = [self.strokeOrder indexOfObject:strokeId];
+    if (entry && idx != NSNotFound) {
+      [self pushHistoryAction:@{ @"type": @"remove", @"entry": entry, @"index": @((NSInteger)idx) }];
+    }
     [self.strokesDict removeObjectForKey:strokeId];
     [self.strokeOrder removeObject:strokeId];
   }
   [self.selectedStrokes removeAllObjects];
-  [self.redoStack removeAllObjects];
   [self redrawStrokesOnOverlay];
   [self.metalView setNeedsDisplay];
   [self emitHistoryStateChange];
@@ -982,7 +1029,10 @@ static const CGFloat kUnifiedMaxScale = 4.0;
   }
   // 副本排在最后（保持一致的重绘顺序：后画者在上）
   [self.strokeOrder addObjectsFromArray:newIds];
-  [self.redoStack removeAllObjects];
+  // 每个副本记一条 add 动作（加入后再记，index 由 pushHistoryAction 按当前顺序补记）。
+  for (NSString *newId in newIds) {
+    [self pushHistoryAction:@{ @"type": @"add", @"id": newId }];
+  }
   [self redrawStrokesOnOverlay];
   [self.metalView setNeedsDisplay];
   [self emitHistoryStateChange];
@@ -1008,7 +1058,8 @@ static const CGFloat kUnifiedMaxScale = 4.0;
   if (!moved) {
     return;
   }
-  [self.redoStack removeAllObjects];
+  // 移动不记历史，但要按「新用户操作让重做失效」清空 redo。
+  [self clearRedoHistory];
   [self redrawStrokesOnOverlay];
   [self.metalView setNeedsDisplay];
   [self emitHistoryStateChange];
@@ -1357,7 +1408,7 @@ static void ZeroIsleLassoConvert(void *info, const CGPathElement *element)
       @"tool": @"shape"
     };
     [self.strokeOrder addObject:shapeId];
-    [self.redoStack removeAllObjects];
+    [self pushHistoryAction:@{ @"type": @"add", @"id": shapeId }];
 
     if (self.onStrokeCommitted) {
       self.onStrokeCommitted(@{
@@ -1608,38 +1659,116 @@ static void ZeroIsleLassoConvert(void *info, const CGPathElement *element)
 // MARK: - 命令方法
 
 - (void)undo {
-  if (self.strokeOrder.count > 0) {
-    // 将最后一个笔迹ID移到重做栈
-    NSString *lastStrokeId = [self.strokeOrder lastObject];
-    NSDictionary *lastStroke = self.strokesDict[lastStrokeId];
+  if (self.undoStack.count == 0) {
+    [self emitHistoryStateChange];
+    return;
+  }
+  // 弹出最后一条动作，执行它的逆操作，再把逆动作压进 redoStack。
+  NSDictionary *action = [self.undoStack lastObject];
+  [self.undoStack removeLastObject];
+  NSMutableDictionary *redoAction = [action mutableCopy];
+  NSString *type = action[@"type"];
+  BOOL changed = NO;
 
-    if (lastStroke) {
-        [self.redoStack addObject:lastStroke];
-        [self.strokeOrder removeLastObject];
-        [self.strokesDict removeObjectForKey:lastStrokeId];
-        [self.metalView setNeedsDisplay];
-    [self redrawStrokesOnOverlay];
-
-        NSLog(@"[NativeInfiniteCanvasView] 撤销完成，剩余笔迹: %lu", (unsigned long)self.strokeOrder.count);
+  if ([type isEqualToString:@"add"]) {
+    // 逆操作：把新加的笔迹摘掉；摘之前把 entry 补进副本，redo 才有数据插回。
+    NSString *strokeId = action[@"id"];
+    if ([strokeId isKindOfClass:[NSString class]]) {
+      NSDictionary *entry = self.strokesDict[strokeId];
+      if (entry) {
+        NSUInteger idx = [self.strokeOrder indexOfObject:strokeId];
+        redoAction[@"entry"] = entry;
+        redoAction[@"index"] = @(idx == NSNotFound ? (NSInteger)self.strokeOrder.count : (NSInteger)idx);
+      }
+      [self.strokesDict removeObjectForKey:strokeId];
+      [self.strokeOrder removeObject:strokeId];
+      changed = YES;
     }
+  } else if ([type isEqualToString:@"remove"]) {
+    // 逆操作：按原下标把被删的笔迹插回去。
+    NSDictionary *entry = action[@"entry"];
+    NSString *strokeId = [entry isKindOfClass:[NSDictionary class]] ? entry[@"id"] : nil;
+    if ([strokeId isKindOfClass:[NSString class]]) {
+      NSInteger idx = ZIClampHistoryIndex([action[@"index"] integerValue], (NSInteger)self.strokeOrder.count);
+      if ([self.strokeOrder indexOfObject:strokeId] == NSNotFound) {
+        [self.strokeOrder insertObject:strokeId atIndex:(NSUInteger)idx];
+      }
+      self.strokesDict[strokeId] = entry;
+      changed = YES;
+    }
+  } else if ([type isEqualToString:@"clear"]) {
+    // 逆操作：按 order 顺序、用 entries 整段还原。
+    NSArray *order = action[@"order"];
+    NSArray *entries = action[@"entries"];
+    if ([order isKindOfClass:[NSArray class]] && [entries isKindOfClass:[NSArray class]]) {
+      NSMutableDictionary *byId = [NSMutableDictionary dictionary];
+      for (NSDictionary *e in entries) {
+        if ([e isKindOfClass:[NSDictionary class]] && [e[@"id"] isKindOfClass:[NSString class]]) {
+          byId[e[@"id"]] = e;
+        }
+      }
+      [self.strokesDict removeAllObjects];
+      [self.strokeOrder removeAllObjects];
+      for (id sid in order) {
+        NSDictionary *e = [sid isKindOfClass:[NSString class]] ? byId[sid] : nil;
+        if (e) {
+          self.strokesDict[sid] = e;
+          [self.strokeOrder addObject:sid];
+        }
+      }
+      changed = YES;
+    }
+  }
+
+  [self.redoStack addObject:redoAction];
+  if (changed) {
+    [self.metalView setNeedsDisplay];
+    [self redrawStrokesOnOverlay];
   }
   [self emitHistoryStateChange];
 }
 
 - (void)redo {
-  if (self.redoStack.count > 0) {
-    // 将最后一个重做项移回笔迹
-    NSDictionary *lastRedoStroke = [self.redoStack lastObject];
-    NSString *strokeId = lastRedoStroke[@"id"];
+  if (self.redoStack.count == 0) {
+    [self emitHistoryStateChange];
+    return;
+  }
+  // 与 undo 对称：弹出 redoStack 顶部的动作，执行原动作，再压回 undoStack。
+  NSDictionary *action = [self.redoStack lastObject];
+  [self.redoStack removeLastObject];
+  NSMutableDictionary *undoAction = [action mutableCopy];
+  NSString *type = action[@"type"];
+  BOOL changed = NO;
 
-    if (strokeId) {
-        [self.redoStack removeLastObject];
-        self.strokesDict[strokeId] = lastRedoStroke;
-        [self.strokeOrder addObject:strokeId];
-        [self.metalView setNeedsDisplay];
-        [self redrawStrokesOnOverlay];
-        NSLog(@"[NativeInfiniteCanvasView] 重做完成，当前笔迹: %lu", (unsigned long)self.strokeOrder.count);
+  if ([type isEqualToString:@"add"]) {
+    NSDictionary *entry = action[@"entry"];
+    NSString *strokeId = [entry isKindOfClass:[NSDictionary class]] ? entry[@"id"] : action[@"id"];
+    if ([strokeId isKindOfClass:[NSString class]] && entry) {
+      NSInteger idx = ZIClampHistoryIndex([action[@"index"] integerValue], (NSInteger)self.strokeOrder.count);
+      if ([self.strokeOrder indexOfObject:strokeId] == NSNotFound) {
+        [self.strokeOrder insertObject:strokeId atIndex:(NSUInteger)idx];
+      }
+      self.strokesDict[strokeId] = entry;
+      changed = YES;
     }
+  } else if ([type isEqualToString:@"remove"]) {
+    NSDictionary *entry = action[@"entry"];
+    NSString *strokeId = [entry isKindOfClass:[NSDictionary class]] ? entry[@"id"] : action[@"id"];
+    if ([strokeId isKindOfClass:[NSString class]]) {
+      [self.strokesDict removeObjectForKey:strokeId];
+      [self.strokeOrder removeObject:strokeId];
+      changed = YES;
+    }
+  } else if ([type isEqualToString:@"clear"]) {
+    [self.strokesDict removeAllObjects];
+    [self.strokeOrder removeAllObjects];
+    changed = YES;
+  }
+
+  [self.undoStack addObject:undoAction];
+  if (changed) {
+    [self.metalView setNeedsDisplay];
+    [self redrawStrokesOnOverlay];
   }
   [self emitHistoryStateChange];
 }
@@ -1653,10 +1782,22 @@ static void ZeroIsleLassoConvert(void *info, const CGPathElement *element)
     // TODO: 实现基于视口的清除
     NSLog(@"[NativeInfiniteCanvasView] 清除当前视图功能待实现");
   } else if ([scope isEqualToString:@"entire_document"] || [scope isEqualToString:@"all"]) {
+    // 清空前按当前顺序把全部笔迹记成一条 clear 动作，撤销才能整段还原。
+    NSMutableArray *entries = [NSMutableArray array];
+    NSMutableArray *order = [NSMutableArray array];
+    for (NSString *strokeId in self.strokeOrder) {
+      NSDictionary *entry = self.strokesDict[strokeId];
+      if (entry) {
+        [entries addObject:entry];
+        [order addObject:strokeId];
+      }
+    }
+    if (entries.count > 0) {
+      [self pushHistoryAction:@{ @"type": @"clear", @"entries": entries, @"order": order }];
+    }
     // 清除所有笔迹
-        [self.strokesDict removeAllObjects];
+    [self.strokesDict removeAllObjects];
     [self.strokeOrder removeAllObjects];
-    [self.redoStack removeAllObjects]; // Clearing should also clear the redo stack
     [self.metalView setNeedsDisplay];
     [self redrawStrokesOnOverlay];
 
@@ -1669,6 +1810,12 @@ static void ZeroIsleLassoConvert(void *info, const CGPathElement *element)
       // 旧实现却把它当数组下标去 removeObjectAtIndex:，属于必然越界的误用。
       for (NSString *strokeId in [self.selectedStrokes copy]) {
         if (![strokeId isKindOfClass:[NSString class]]) continue;
+        // 同样在移除前记录 remove 动作，否则这条路径撤不回来。
+        NSDictionary *entry = self.strokesDict[strokeId];
+        NSUInteger idx = [self.strokeOrder indexOfObject:strokeId];
+        if (entry && idx != NSNotFound) {
+          [self pushHistoryAction:@{ @"type": @"remove", @"entry": entry, @"index": @((NSInteger)idx) }];
+        }
         [self.strokesDict removeObjectForKey:strokeId];
         [self.strokeOrder removeObject:strokeId];
       }
@@ -1845,8 +1992,10 @@ static void ZeroIsleLassoConvert(void *info, const CGPathElement *element)
       entries = [raw isKindOfClass:[NSArray class]] ? raw : @[];
     }
 
+    // 导入是重建整个画布，不记动作，但历史必须整体清空。
     [self.strokesDict removeAllObjects];
     [self.strokeOrder removeAllObjects];
+    [self.undoStack removeAllObjects];
     [self.redoStack removeAllObjects];
 
     for (NSDictionary *raw in entries) {
@@ -2010,7 +2159,7 @@ static void ZeroIsleLassoConvert(void *info, const CGPathElement *element)
 
   self.strokesDict[imageId] = entry;
   [self.strokeOrder addObject:imageId];
-  [self.redoStack removeAllObjects];
+  [self pushHistoryAction:@{ @"type": @"add", @"id": imageId }];
 
   if (self.onStrokeCommitted) {
     self.onStrokeCommitted(@{

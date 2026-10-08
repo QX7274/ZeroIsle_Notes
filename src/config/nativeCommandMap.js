@@ -38,6 +38,10 @@ export const HANDWRITING_PROTOCOL_COMMANDS = Object.freeze({
   setTool: 'setTool',
   setColor: 'setColor',
   setStrokeWidth: 'setStrokeWidth',
+  deleteSelectedStrokes: 'deleteSelectedStrokes',
+  duplicateSelectedStrokes: 'duplicateSelectedStrokes',
+  moveSelectedStrokes: 'moveSelectedStrokes',
+  clearStrokeSelection: 'clearStrokeSelection',
 });
 
 const LEGACY_ALIASES = Object.freeze({
@@ -112,6 +116,13 @@ const LEGACY_ALIASES = Object.freeze({
     setTool: ['setTool', 'setCurrentTool'],
     setColor: ['setColor', 'setCurrentColor'],
     setStrokeWidth: ['setStrokeWidth', 'setCurrentStrokeWidth'],
+    // 选中笔迹操作：与分页画布对齐。
+    // Android 无限画布此前只上报 onStrokesSelected、本地不留选中态，也没有这四条命令，
+    // 于是工具栏的「删除/复制/移动」在无限画布上是死按钮（真机探针实测 missing）。
+    deleteSelectedStrokes: ['deleteSelectedStrokes'],
+    duplicateSelectedStrokes: ['duplicateSelectedStrokes'],
+    moveSelectedStrokes: ['moveSelectedStrokes'],
+    clearStrokeSelection: ['clearStrokeSelection'],
   },
 });
 

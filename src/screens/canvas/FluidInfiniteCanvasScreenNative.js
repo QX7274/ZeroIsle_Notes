@@ -16,7 +16,6 @@ import {
   StyleSheet,
   Platform,
   Alert,
-  NativeModules,
   requireNativeComponent,
   UIManager,
   findNodeHandle,
@@ -75,12 +74,19 @@ const FluidInfiniteCanvasScreenNative = ({ route, navigation }) => {
   const [strokeOrder, setStrokeOrder] = useState([]);
   const [loadedCanvasStyle, setLoadedCanvasStyle] = useState(canvasStyle || 'white');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  // 撤销/重做可用状态：此前无限画布不接收原生历史事件，撤销按钮永远是灰的
+  const [toolbarHistoryState, setToolbarHistoryState] = useState({ canUndo: false, canRedo: false });
 
   const canvasViewRef = useRef(null);
   const autoSaveTimerRef = useRef(null);
 
   // ========== 使用原生工具栏桥接Hook ==========
-  const toolbarPropsBase = useNativeToolbarBridge(canvasViewRef, 'infinite');
+  // 套索选中的笔迹（原生 onStrokesSelected 上报），供工具栏的删除/复制/移动使用
+  const [selectedStrokeIds, setSelectedStrokeIds] = useState([]);
+  const toolbarPropsBase = useNativeToolbarBridge(canvasViewRef, 'infinite', {
+    historyState: toolbarHistoryState,
+    onHistoryStateChange: setToolbarHistoryState,
+  });
   const zoomDebounceTimer = useRef(null);
   const viewportRef = useRef({ x: 0, y: 0, scale: 1 });
   const exportDebounceTimerRef = useRef(null);
@@ -586,6 +592,10 @@ const FluidInfiniteCanvasScreenNative = ({ route, navigation }) => {
     if (noteObjectId && strokeData) {
       setHasUnsavedChanges(true);
       scheduleCanvasExport(250);
+      // 落笔即可撤销；新笔迹会清空重做栈
+      setToolbarHistoryState((prev) => (
+        prev.canUndo && !prev.canRedo ? prev : { canUndo: true, canRedo: false }
+      ));
     }
 
 
@@ -601,6 +611,19 @@ const FluidInfiniteCanvasScreenNative = ({ route, navigation }) => {
       count: 1,
     });
   }, [noteObjectId, scheduleCanvasExport, toolbarPropsBase]);
+
+  // 原生事件驱动：同步撤销/重做可用状态
+  const handleHistoryStateChange = useCallback((event) => {
+    const state = event?.nativeEvent || event || {};
+    setToolbarHistoryState((prev) => {
+      const canUndo = typeof state.canUndo === 'boolean' ? state.canUndo : prev.canUndo;
+      const canRedo = typeof state.canRedo === 'boolean' ? state.canRedo : prev.canRedo;
+      if (canUndo === prev.canUndo && canRedo === prev.canRedo) {
+        return prev;
+      }
+      return { canUndo, canRedo };
+    });
+  }, []);
 
   // 处理导出完成事件
   const handleExportComplete = useCallback(async (event) => {
@@ -727,15 +750,40 @@ const FluidInfiniteCanvasScreenNative = ({ route, navigation }) => {
     const { strokeIds } = event.nativeEvent;
     if (strokeIds && strokeIds.length > 0) {
       console.log(`[Lasso] 选中 ${strokeIds.length} 个笔迹`);
-      const recognizedText = await onRequestStrokeRecognition('lasso', strokeIds);
-      if (recognizedText) {
-        // 在这里处理识别出的文本，例如显示在UI上或插入到画布中
-        Alert.alert('识别结果', recognizedText);
-      }
+      // 把选中集合交给工具栏：否则「删除/复制/移动」没有作用对象，
+      // 只能显示成「暂不支持」（分页画布已这样做，无限画布此前漏了这一步）。
+      setSelectedStrokeIds(strokeIds);
     } else {
+      setSelectedStrokeIds([]);
       console.log('[Lasso] 没有选中任何笔迹');
     }
-  }, [onRequestStrokeRecognition]);
+  }, []);
+
+  /**
+   * 选中笔迹的操作（删除/复制/完成）。
+   *
+   * 与 SkiaPagedCanvasScreenNative 对齐：原生一直会上报 onStrokesSelected，
+   * 缺的只是把工具栏按钮接到真实命令通道上的这条回路。
+   */
+  const onSelectedStrokesAction = useCallback((actionId, strokeIds) => {
+    const ids = Array.isArray(strokeIds) ? strokeIds : [];
+    if (ids.length === 0) {
+      return;
+    }
+    if (actionId === 'delete') {
+      toolbarPropsBase.onDeleteSelectedStrokes?.(ids);
+      setSelectedStrokeIds([]);
+      return;
+    }
+    if (actionId === 'duplicate') {
+      toolbarPropsBase.onDuplicateSelectedStrokes?.(ids);
+      return;
+    }
+    if (actionId === 'done') {
+      toolbarPropsBase.onClearStrokeSelection?.();
+      setSelectedStrokeIds([]);
+    }
+  }, [toolbarPropsBase]);
 
   const handleGoBack = useCallback(async () => {
     try {
@@ -871,10 +919,15 @@ const FluidInfiniteCanvasScreenNative = ({ route, navigation }) => {
         }
         title={title || '无限画布（原生）'}
         showExternalToolbar={true}
+        toolbarMode="canvas"
         toolbarProps={{
           ...toolbarPropsBase,
+          mode: 'canvas',
           onRequestRegionOCR,
           onRequestStrokeRecognition,
+          // 工具栏据此显示并启用选中操作条
+          selectedStrokeIds,
+          onSelectedStrokesAction,
         }}
         showHistoryNavigation={true}
         historyNavigationHeight={30}
@@ -898,6 +951,7 @@ const FluidInfiniteCanvasScreenNative = ({ route, navigation }) => {
           onHandwritingRecognized={handleHandwritingRecognized}
           onStrokesSelected={handleStrokesSelected}
           onExportComplete={handleExportComplete}
+          onHistoryStateChange={handleHistoryStateChange}
           onError={(event) => {
             console.error('[FluidInfiniteCanvasScreenNative] 原生组件错误:', event.nativeEvent);
             setError(event.nativeEvent.message || '原生组件发生错误');

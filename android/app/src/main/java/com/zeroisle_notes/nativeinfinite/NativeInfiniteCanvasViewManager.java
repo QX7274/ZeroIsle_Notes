@@ -102,6 +102,12 @@ public class NativeInfiniteCanvasViewManager extends SimpleViewManager<NativeInf
             .put("lassoStart", 21)
             .put("lassoUpdate", 22)
             .put("lassoComplete", 23)
+            // 选中笔迹操作：与分页画布对齐。此前完全缺失，
+            // 工具栏的「删除/复制/移动」在无限画布上是死按钮。
+            .put("deleteSelectedStrokes", 24)
+            .put("duplicateSelectedStrokes", 25)
+            .put("moveSelectedStrokes", 26)
+            .put("clearStrokeSelection", 27)
             .build();
     }
 
@@ -221,6 +227,30 @@ public class NativeInfiniteCanvasViewManager extends SimpleViewManager<NativeInf
                 if (args != null && args.size() > 0) {
                     root.lassoCompleteFromJS(args.getString(0));
                 }
+                break;
+            case 24: // deleteSelectedStrokes
+                if (args != null && args.size() > 0) {
+                    root.deleteSelectedStrokes(args.getString(0));
+                }
+                break;
+            case 25: // duplicateSelectedStrokes
+                if (args != null && args.size() > 2) {
+                    root.duplicateSelectedStrokes(
+                        args.getString(0), (float) args.getDouble(1), (float) args.getDouble(2));
+                }
+                break;
+            case 26: // moveSelectedStrokes
+                if (args != null && args.size() > 2) {
+                    root.moveSelectedStrokes(
+                        args.getString(0), (float) args.getDouble(1), (float) args.getDouble(2));
+                }
+                break;
+            case 27: // clearStrokeSelection
+                root.clearStrokeSelection();
+                break;
+            default:
+                android.util.Log.w("NativeInfiniteCanvasViewManager",
+                    "未处理的命令号: " + commandId);
                 break;
         }
     }
