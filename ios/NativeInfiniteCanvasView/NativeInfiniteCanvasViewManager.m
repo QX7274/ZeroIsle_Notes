@@ -163,7 +163,10 @@ RCT_EXPORT_METHOD(recognizeHandwriting:(nonnull NSNumber *)reactTag
 }
 
 // 接收命令
-- (void)receiveCommand:(nonnull NSNumber *)reactTag commandID:(NSString *)commandID commandArgs:(NSArray *)commandArgs
+// WS-IOS-CMD-BRIDGE
+// iOS 上没有 receiveCommand: 这一协议（那是 Android 的）。命令统一经下面自动生成的
+// RCT_EXPORT_METHOD 转发到这里，再按 id 分发，保持单一实现。
+- (void)handleCommand:(nonnull NSNumber *)reactTag commandID:(NSString *)commandID commandArgs:(NSArray *)commandArgs
 {
   NSInteger cmd = [commandID integerValue];
   [self.bridge.uiManager addUIBlock:^(__unused RCTUIManager *uiManager, NSDictionary<NSNumber *, UIView *> *viewRegistry) {
@@ -310,6 +313,125 @@ RCT_EXPORT_METHOD(recognizeHandwriting:(nonnull NSNumber *)reactTag
         break;
     }
   }];
+}
+
+
+#pragma mark - 命令入口（自动生成，勿手改）
+//
+// 为什么必须逐个写成 RCT_EXPORT_METHOD：
+// RN 的 RCTComponentData.commandsForViewMangerClass 是扫描 **RCT_EXPORT_METHOD** 来生成
+// UIManager 的 Commands 表的（React/Views/RCTComponentData.m:396-421,526）。
+// constantsToExport 里手写的 Commands 会被放进 Constants 并被忽略，
+// 于是「命令表看起来齐全、实际只有导出的那几个方法可达」。
+// JS 侧因此改为下发**命令名**（getCommandName），由 RN 用 methodsByName 命中这些方法。
+RCT_EXPORT_METHOD(addPage:(nonnull NSNumber *)reactTag)
+{
+  [self handleCommand:reactTag commandID:@"19" commandArgs:@[]];
+}
+
+RCT_EXPORT_METHOD(addText:(nonnull NSNumber *)reactTag arg0:(NSString *)arg0 arg1:(NSString *)arg1)
+{
+  [self handleCommand:reactTag commandID:@"2" commandArgs:[NSArray arrayWithObjects:arg0, arg1, nil]];
+}
+
+RCT_EXPORT_METHOD(clear:(nonnull NSNumber *)reactTag arg0:(NSString *)arg0)
+{
+  [self handleCommand:reactTag commandID:@"6" commandArgs:[NSArray arrayWithObjects:arg0, nil]];
+}
+
+RCT_EXPORT_METHOD(clearStrokeSelection:(nonnull NSNumber *)reactTag)
+{
+  [self handleCommand:reactTag commandID:@"23" commandArgs:@[]];
+}
+
+RCT_EXPORT_METHOD(deleteSelectedStrokes:(nonnull NSNumber *)reactTag arg0:(NSString *)arg0)
+{
+  [self handleCommand:reactTag commandID:@"20" commandArgs:[NSArray arrayWithObjects:arg0, nil]];
+}
+
+RCT_EXPORT_METHOD(duplicateSelectedStrokes:(nonnull NSNumber *)reactTag arg0:(NSString *)arg0 arg1:(double)arg1 arg2:(double)arg2)
+{
+  [self handleCommand:reactTag commandID:@"21" commandArgs:[NSArray arrayWithObjects:arg0, @(arg1), @(arg2), nil]];
+}
+
+RCT_EXPORT_METHOD(exportAnnotations:(nonnull NSNumber *)reactTag arg0:(NSString *)arg0)
+{
+  [self handleCommand:reactTag commandID:@"3" commandArgs:[NSArray arrayWithObjects:arg0, nil]];
+}
+
+RCT_EXPORT_METHOD(importAnnotations:(nonnull NSNumber *)reactTag arg0:(NSString *)arg0)
+{
+  [self handleCommand:reactTag commandID:@"17" commandArgs:[NSArray arrayWithObjects:arg0, nil]];
+}
+
+RCT_EXPORT_METHOD(lassoComplete:(nonnull NSNumber *)reactTag arg0:(NSString *)arg0)
+{
+  [self handleCommand:reactTag commandID:@"14" commandArgs:[NSArray arrayWithObjects:arg0, nil]];
+}
+
+RCT_EXPORT_METHOD(lassoStart:(nonnull NSNumber *)reactTag arg0:(NSString *)arg0)
+{
+  [self handleCommand:reactTag commandID:@"13" commandArgs:[NSArray arrayWithObjects:arg0, nil]];
+}
+
+RCT_EXPORT_METHOD(lassoUpdate:(nonnull NSNumber *)reactTag arg0:(NSString *)arg0)
+{
+  [self handleCommand:reactTag commandID:@"13" commandArgs:[NSArray arrayWithObjects:arg0, nil]];
+}
+
+RCT_EXPORT_METHOD(moveSelectedStrokes:(nonnull NSNumber *)reactTag arg0:(NSString *)arg0 arg1:(double)arg1 arg2:(double)arg2)
+{
+  [self handleCommand:reactTag commandID:@"22" commandArgs:[NSArray arrayWithObjects:arg0, @(arg1), @(arg2), nil]];
+}
+
+RCT_EXPORT_METHOD(redo:(nonnull NSNumber *)reactTag)
+{
+  [self handleCommand:reactTag commandID:@"5" commandArgs:@[]];
+}
+
+RCT_EXPORT_METHOD(resetViewport:(nonnull NSNumber *)reactTag)
+{
+  [self handleCommand:reactTag commandID:@"12" commandArgs:@[]];
+}
+
+RCT_EXPORT_METHOD(setColor:(nonnull NSNumber *)reactTag arg0:(NSString *)arg0)
+{
+  [self handleCommand:reactTag commandID:@"8" commandArgs:[NSArray arrayWithObjects:arg0, nil]];
+}
+
+RCT_EXPORT_METHOD(setInteractionMode:(nonnull NSNumber *)reactTag arg0:(NSString *)arg0)
+{
+  [self handleCommand:reactTag commandID:@"16" commandArgs:[NSArray arrayWithObjects:arg0, nil]];
+}
+
+RCT_EXPORT_METHOD(setPage:(nonnull NSNumber *)reactTag arg0:(NSInteger)arg0)
+{
+  [self handleCommand:reactTag commandID:@"18" commandArgs:[NSArray arrayWithObjects:@(arg0), nil]];
+}
+
+RCT_EXPORT_METHOD(setStrokeWidth:(nonnull NSNumber *)reactTag arg0:(double)arg0)
+{
+  [self handleCommand:reactTag commandID:@"9" commandArgs:[NSArray arrayWithObjects:@(arg0), nil]];
+}
+
+RCT_EXPORT_METHOD(setTool:(nonnull NSNumber *)reactTag arg0:(NSString *)arg0)
+{
+  [self handleCommand:reactTag commandID:@"7" commandArgs:[NSArray arrayWithObjects:arg0, nil]];
+}
+
+RCT_EXPORT_METHOD(setToolConfig:(nonnull NSNumber *)reactTag arg0:(NSString *)arg0)
+{
+  [self handleCommand:reactTag commandID:@"10" commandArgs:[NSArray arrayWithObjects:arg0, nil]];
+}
+
+RCT_EXPORT_METHOD(setViewport:(nonnull NSNumber *)reactTag arg0:(NSString *)arg0)
+{
+  [self handleCommand:reactTag commandID:@"11" commandArgs:[NSArray arrayWithObjects:arg0, nil]];
+}
+
+RCT_EXPORT_METHOD(undo:(nonnull NSNumber *)reactTag)
+{
+  [self handleCommand:reactTag commandID:@"4" commandArgs:@[]];
 }
 
 @end

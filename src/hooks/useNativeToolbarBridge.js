@@ -186,7 +186,25 @@ const resolveInteractionMode = (config) => {
   return TOOL_TO_INTERACTION_MODE[config?.tool] || TOOL_TO_INTERACTION_MODE.default;
 };
 
-const getCommandId = (viewType, commandName) => {
+/**
+ * 解析出「真正可用的命令**名字**」。
+ *
+ * 历史缺陷（由 iOS 真机日志证实，是本项目最严重的一处静默失效）：
+ * 这里原本返回 Commands 里的**数字** ID，dispatchCommand 再用 `commandId.toString()` 发出去。
+ * 结果：
+ *   - iOS：RCTUIManager 收到字符串后走 `moduleData.methodsByName["0"]`，
+ *     而 iOS 的 Commands 是由 RCT_EXPORT_METHOD 生成的、键是**方法名**，
+ *     于是必然得到 nil，控制台打出 `No command found with name "0"` —— 命令 100% 丢弃。
+ *   - Android：ViewManager.receiveCommand(view, String, args) 会转交 delegate，
+ *     而本项目自定义 ViewManager 没有 delegate，同样静默丢弃。
+ * 也就是说：**工具栏的绝大多数命令在两端的原生侧都从未生效过**。
+ *
+ * 正确做法是下发**命令名**：
+ *   - iOS 用 methodsByName[name] 直接命中导出的方法；
+ *   - Android 在 ViewManager 里重写 receiveCommand(View, String, args)，用名字查表再转 id。
+ * 名字取「协议名 → 历史别名」中第一个在 Commands 里登记过的那个。
+ */
+const getCommandName = (viewType, commandName) => {
   const componentName = SURFACE_COMPONENTS[viewType];
   if (!componentName) {
     return null;
@@ -201,7 +219,7 @@ const getCommandId = (viewType, commandName) => {
   const aliases = getSurfaceCommandNames(viewType, commandName);
   for (const alias of aliases) {
     if (commandMap[alias] !== undefined && commandMap[alias] !== null) {
-      return commandMap[alias];
+      return alias;
     }
   }
 
@@ -218,12 +236,14 @@ const dispatchCommand = (viewRef, viewType, commandName, args = []) => {
     return false;
   }
 
-  const commandId = getCommandId(viewType, commandName);
-  if (commandId === null || commandId === undefined) {
+  const resolvedName = getCommandName(viewType, commandName);
+  if (!resolvedName) {
     return false;
   }
 
-  UIManager.dispatchViewManagerCommand(nodeHandle, commandId.toString(), args);
+  // 必须下发**名字**而不是数字 ID：见 getCommandName 上方注释。
+  // 传数字再 toString 会让 iOS/Android 的原生侧双双找不到命令（曾由日志证实）。
+  UIManager.dispatchViewManagerCommand(nodeHandle, resolvedName, args);
   return true;
 };
 
