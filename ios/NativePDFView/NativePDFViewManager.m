@@ -64,8 +64,19 @@ RCT_CUSTOM_VIEW_PROPERTY(currentStrokeWidth, NSNumber, NativePDFView)
 }
 
 // 事件回调导出
+// P0 修复：此前只导出了 onZoomChange / onHistoryStateChange 两条，其余 7 个事件属性
+// 在 RN 侧根本不认（扫描不到 propConfig_onXxx 就不会把它当事件属性，
+// 见 node_modules/react-native/React/Views/RCTComponentData.m:446-527），
+// 于是 PDF 的 onReady 永不触发、isLoading 永远为 true、数据导入不执行。
+RCT_EXPORT_VIEW_PROPERTY(onReady, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onError, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onPageChange, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onZoomChange, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onStrokeCommitted, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onHistoryStateChange, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onMetrics, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onExportComplete, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onHandwritingRecognized, RCTDirectEventBlock)
 
 
 // MARK: - Methods

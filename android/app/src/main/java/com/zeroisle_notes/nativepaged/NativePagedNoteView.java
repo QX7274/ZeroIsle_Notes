@@ -1592,13 +1592,16 @@ public class NativePagedNoteView extends ScrollView {
         // 删除必须记成 REMOVE_STROKE 动作并带上原下标：旧实现只把笔迹压进 redoStack，
         // 而 undo() 是无条件弹 strokes 末尾——删除后按撤销会撤掉末尾那条无辜笔迹，
         // 真正被删的反而回不来。
+        // 先取原下标（此刻 strokes 完整），再统一移除，整批记成一条复合动作。
+        List<Integer> removedAt = new ArrayList<>();
         for (StrokeData s : removed) {
-            int at = pageData.strokes.indexOf(s);
-            if (at < 0) continue;
-            pageData.strokes.remove(at);
-            pushHistoryAction(pageData, new HistoryAction(
-                HistoryAction.Type.REMOVE_STROKE, s, at));
+            removedAt.add(pageData.strokes.indexOf(s));
         }
+        for (StrokeData s : removed) {
+            pageData.strokes.remove(s);
+        }
+        pushHistoryAction(pageData, new HistoryAction(
+            HistoryAction.Type.REMOVE_BATCH, new ArrayList<>(removed), removedAt));
 
         clearSelectionOnAllPages();
         pageViews.get(currentPage).invalidate();
@@ -1628,13 +1631,15 @@ public class NativePagedNoteView extends ScrollView {
 
         // 复制后「选中态」应转移到副本上，符合「刚复制出来的就是要继续操作的对象」的直觉
         List<String> newIds = new ArrayList<>();
+        List<Integer> copyIndices = new ArrayList<>();
         for (StrokeData c : copies) {
             pageData.strokes.add(c);
+            copyIndices.add(pageData.strokes.size() - 1);
             newIds.add(c.id);
-            // 每条副本各记一个 ADD_STROKE，撤销才能精确移除对应的那一条
-            pushHistoryAction(pageData, new HistoryAction(
-                HistoryAction.Type.ADD_STROKE, c, pageData.strokes.size() - 1));
         }
+        // 整批复制记成一条复合动作，一次撤销整批移除副本。
+        pushHistoryAction(pageData, new HistoryAction(
+            HistoryAction.Type.ADD_BATCH, new ArrayList<>(copies), copyIndices));
 
         pageViews.get(currentPage).invalidate();
         sendHistoryStateChangeEvent();
@@ -2034,6 +2039,14 @@ public class NativePagedNoteView extends ScrollView {
                     pageData.strokes.addAll(action.clearedStrokes);
                 }
                 break;
+            case REMOVE_BATCH:
+                // 撤销「批量删除」：整批按原下标插回。
+                restoreBatch(pageData, action);
+                break;
+            case ADD_BATCH:
+                // 撤销「批量复制」：整批移除副本。
+                removeBatch(pageData, action);
+                break;
             default:
                 break;
         }
@@ -2056,8 +2069,41 @@ public class NativePagedNoteView extends ScrollView {
             case CLEAR:
                 pageData.strokes.clear();
                 break;
+            case REMOVE_BATCH:
+                // 重做「批量删除」：整批再次移除。
+                removeBatch(pageData, action);
+                break;
+            case ADD_BATCH:
+                // 重做「批量复制」：整批按原下标插回。
+                restoreBatch(pageData, action);
+                break;
             default:
                 break;
+        }
+    }
+
+    /** 把一批笔迹按各自原下标插回（升序插入即可还原原层次）。 */
+    private void restoreBatch(PageData pageData, HistoryAction action) {
+        if (pageData == null || action.batchStrokes == null || action.batchIndices == null) return;
+        int n = Math.min(action.batchStrokes.size(), action.batchIndices.size());
+        Integer[] order = new Integer[n];
+        for (int i = 0; i < n; i++) order[i] = i;
+        java.util.Arrays.sort(order, (a, b) -> action.batchIndices.get(a) - action.batchIndices.get(b));
+        for (int k = 0; k < n; k++) {
+            int i = order[k];
+            StrokeData s = action.batchStrokes.get(i);
+            if (s == null || pageData.strokes.contains(s)) continue;
+            int at = action.batchIndices.get(i);
+            if (at < 0 || at > pageData.strokes.size()) at = pageData.strokes.size();
+            pageData.strokes.add(at, s);
+        }
+    }
+
+    /** 把一批笔迹从该页移除。 */
+    private void removeBatch(PageData pageData, HistoryAction action) {
+        if (pageData == null || action.batchStrokes == null) return;
+        for (StrokeData s : action.batchStrokes) {
+            if (s != null) pageData.strokes.remove(s);
         }
     }
 
@@ -2706,18 +2752,41 @@ public class NativePagedNoteView extends ScrollView {
 
     /** 一条可撤销的历史动作。REMOVE/CLEAR 均保留被移除的笔迹与原始下标，以支持精确还原。 */
     static class HistoryAction {
-        enum Type { ADD_STROKE, REMOVE_STROKE, CLEAR }
+        enum Type {
+            ADD_STROKE, REMOVE_STROKE, CLEAR,
+            /**
+             * 一次删除多条的复合动作：逐条记动作会让「点一次删除、一次撤销」
+             * 只还原一条，必须连点 N 次才回到删除前，与直觉不符。
+             */
+            REMOVE_BATCH,
+            /** 一次复制多条的复合动作。 */
+            ADD_BATCH
+        }
 
         final Type type;
         final StrokeData strokeData;
         final int index;
         final List<StrokeData> clearedStrokes;
+        /** 复合动作涉及的笔迹与各自的原下标（一一对应）。 */
+        final List<StrokeData> batchStrokes;
+        final List<Integer> batchIndices;
+
+        HistoryAction(Type type, List<StrokeData> batchStrokes, List<Integer> batchIndices) {
+            this.type = type;
+            this.strokeData = null;
+            this.index = -1;
+            this.clearedStrokes = null;
+            this.batchStrokes = batchStrokes;
+            this.batchIndices = batchIndices;
+        }
 
         HistoryAction(Type type, StrokeData strokeData, int index) {
             this.type = type;
             this.strokeData = strokeData;
             this.index = index;
             this.clearedStrokes = null;
+            this.batchStrokes = null;
+            this.batchIndices = null;
         }
 
         HistoryAction(List<StrokeData> clearedStrokes) {
@@ -2725,6 +2794,8 @@ public class NativePagedNoteView extends ScrollView {
             this.strokeData = null;
             this.index = -1;
             this.clearedStrokes = clearedStrokes;
+            this.batchStrokes = null;
+            this.batchIndices = null;
         }
     }
 

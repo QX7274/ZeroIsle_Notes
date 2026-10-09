@@ -39,6 +39,18 @@ RCT_CUSTOM_VIEW_PROPERTY(currentStrokeWidth, NSNumber, NativeInfiniteCanvasView)
   [view setCurrentStrokeWidth:[RCTConvert CGFloat:json]];
 }
 
+// 事件回调导出（P0：此前一条都没有，导致 RN 不把 onXxx 传给原生 view，block 恒为 nil，
+// 导出/套索选中/撤销状态回传全部静默失效。RN 只在扫描到 propConfig_onXxx 时才把该属性
+// 认作事件属性，见 node_modules/react-native/React/Views/RCTComponentData.m:446-527）。
+RCT_EXPORT_VIEW_PROPERTY(onViewportChange, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onStrokeCommitted, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onMetrics, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onHandwritingRecognized, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onHistoryStateChange, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onStrokesSelected, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onExportComplete, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onReady, RCTDirectEventBlock)
+
 // 添加图片（命令ID: 15）
 RCT_EXPORT_METHOD(addImage:(nonnull NSNumber *)reactTag imageUri:(NSString *)imageUri)
 {

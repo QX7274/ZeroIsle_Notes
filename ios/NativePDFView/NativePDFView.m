@@ -2202,6 +2202,9 @@ static const CGFloat kPDFOverlayGridStep = 20.0;
   CGFloat padding = 20.0;
   CGRect imageRect = CGRectInset(boundingBox, -padding, -padding);
 
+  // 空路径时 imageRect 仍是 0 尺寸，直接建上下文会抛异常。
+  if (!(imageRect.size.width >= 1.0) || !(imageRect.size.height >= 1.0)) return;
+
   UIGraphicsBeginImageContextWithOptions(imageRect.size, NO, [UIScreen mainScreen].scale);
   CGContextRef context = UIGraphicsGetCurrentContext();
 
@@ -2613,6 +2616,12 @@ static const CGFloat kPDFOverlayGridStep = 20.0;
  */
 - (void)recognizeTextInRect:(CGRect)rect completion:(void (^)(NSString *text, NSError *error))completion
 {
+  // bounds 为 {0,0} 时（视图尚未布局）UIGraphicsBeginImageContextWithOptions 会抛
+  // "failed to allocate CGBitampContext" 异常，必须先挡掉，否则整条 JS UI block 崩红屏。
+  if (!(self.bounds.size.width >= 1.0) || !(self.bounds.size.height >= 1.0)) {
+    if (completion) completion(nil, [NSError errorWithDomain:@"NativePDFView" code:-3 userInfo:@{NSLocalizedDescriptionKey: @"视图尺寸无效，无法识别"}]);
+    return;
+  }
   UIGraphicsBeginImageContextWithOptions(self.bounds.size, NO, [UIScreen mainScreen].scale);
   [self.layer renderInContext:UIGraphicsGetCurrentContext()];
   UIImage *fullImage = UIGraphicsGetImageFromCurrentImageContext();

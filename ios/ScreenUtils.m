@@ -89,6 +89,12 @@ RCT_EXPORT_METHOD(pickColor:(RCTPromiseResolveBlock)resolve
   }
   
   CGRect bounds = keyWindow.bounds;
+  // bounds 为 0 尺寸时 UIGraphicsBeginImageContextWithOptions 会抛
+  // "failed to allocate CGBitampContext" 异常，先挡掉并返回 nil（调用方已有 nil 处理）。
+  if (!(bounds.size.width >= 1.0) || !(bounds.size.height >= 1.0)) {
+    RCTLogError(@"keyWindow 尺寸无效，无法截屏");
+    return nil;
+  }
   UIGraphicsBeginImageContextWithOptions(bounds.size, NO, [UIScreen mainScreen].scale);
   
   [keyWindow drawViewHierarchyInRect:bounds afterScreenUpdates:YES];

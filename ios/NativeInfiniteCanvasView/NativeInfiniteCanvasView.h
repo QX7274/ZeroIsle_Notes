@@ -17,6 +17,10 @@
 @property (nonatomic, copy) RCTBubblingEventBlock onMetrics;
 @property (nonatomic, copy) RCTBubblingEventBlock onHandwritingRecognized;
 @property (nonatomic, copy) RCTBubblingEventBlock onHistoryStateChange;
+// 视图就绪事件：JS 侧 isLoading 初值为 true（FluidInfiniteCanvasScreenNative.js:70），
+// 只有 onReady 到达才会摘掉加载遮罩（:542/:967）。此前 iOS 既不导出也不发射，
+// 导致 iOS 上无限画布永远卡在「加载原生无限画布...」。
+@property (nonatomic, copy) RCTBubblingEventBlock onReady;
 
 - (void)setCanvasId:(NSString *)canvasId;
 - (void)setViewport:(NSDictionary *)viewport;

@@ -118,6 +118,9 @@
 - (void)updateLassoLayerFromWorldPath;
 - (UIBezierPath *)createShapePathFrom:(CGPoint)start to:(CGPoint)end shapeName:(NSString *)shapeName;
 - (void)pushHistoryAction:(NSDictionary *)action;
+/** onReady 只发一次（layoutSubviews 会被反复调用）。 */
+@property (nonatomic, assign) BOOL hasEmittedReady;
+- (void)emitReadyIfNeeded;
 - (void)clearRedoHistory;
 
 @end
@@ -414,6 +417,28 @@ static const CGFloat kUnifiedMaxScale = 4.0;
   [super layoutSubviews];
   self.strokesImageView.frame = self.bounds;
   [self redrawStrokesOnOverlay];
+  [self emitReadyIfNeeded];
+}
+
+/**
+ * 发一次 onReady（幂等）。
+ *
+ * 为什么放在 layoutSubviews：Android 侧是在 view 初始化后 post() 里发的，
+ * 等待尺寸确定。iOS 等 bounds 有效再发，保证 JS 收到时视图已经能画。
+ * 为什么不放在 initWithFrame：那时 bounds 还是零，且 RN 的事件 block
+ * 要等属性下发后才挂上，太早发会丢。
+ */
+- (void)emitReadyIfNeeded {
+  if (self.hasEmittedReady) {
+    return;
+  }
+  if (!(self.bounds.size.width >= 1.0) || !(self.bounds.size.height >= 1.0)) {
+    return;
+  }
+  self.hasEmittedReady = YES;
+  if (self.onReady) {
+    self.onReady(@{ @"ready": @YES });
+  }
 }
 
 - (void)setViewport:(NSDictionary *)viewport {
@@ -465,19 +490,25 @@ static const CGFloat kUnifiedMaxScale = 4.0;
   [self.metalView setNeedsDisplay];
 }
 
+// 为什么必须写 _ivar 而不是 self.xxx：
+// 这是 RCT_CUSTOM_VIEW_PROPERTY(currentTool) 调用的自定义 setter，本身就叫
+// setCurrentTool:。在它内部写 self.currentTool = tool 等于递归调用自己，
+// 每次递归都压栈 → 视图一创建（JS 传 currentTool 属性）就 SIGSEGV
+// "Thread stack size exceeded due to excessive recursion"。
+// 同类写法会静默把 App 打崩，故三个 setter 一律直接赋 _ivar。
 - (void)setCurrentTool:(NSString *)tool {
-  self.currentTool = tool;
+  _currentTool = tool;
   NSLog(@"[NativeInfiniteCanvasView] 工具切换到: %@", tool);
   [self updateAllowedTouchTypes];
 }
 
 - (void)setCurrentColor:(NSString *)color {
-  self.currentColor = [self colorFromHexString:color];
+  _currentColor = [self colorFromHexString:color];
   NSLog(@"[NativeInfiniteCanvasView] 颜色更新: %@", color);
 }
 
 - (void)setCurrentStrokeWidth:(CGFloat)width {
-  self.currentStrokeWidth = width;
+  _currentStrokeWidth = width;
   NSLog(@"[NativeInfiniteCanvasView] 线宽更新: %.2f", width);
 }
 
@@ -530,6 +561,50 @@ static NSInteger ZIClampHistoryIndex(NSInteger index, NSInteger count) {
   if (index < 0) return 0;
   if (index > count) return count;
   return index;
+}
+
+/**
+ * 把一批笔迹按各自的原下标插回画布。
+ * 「批量删除」的撤销与「批量复制」的重做都走这里 —— 按原下标升序插入即可还原层次。
+ */
+- (void)restoreBatchEntries:(NSDictionary *)action
+{
+  NSArray *entries = action[@"entries"];
+  NSArray *indices = action[@"indices"];
+  if (![entries isKindOfClass:[NSArray class]] || ![indices isKindOfClass:[NSArray class]]) {
+    return;
+  }
+  NSInteger n = MIN((NSInteger)entries.count, (NSInteger)indices.count);
+  NSMutableArray<NSNumber *> *order = [NSMutableArray array];
+  for (NSInteger i = 0; i < n; i++) [order addObject:@(i)];
+  [order sortUsingComparator:^NSComparisonResult(NSNumber *a, NSNumber *b) {
+    return [indices[a.integerValue] compare:indices[b.integerValue]];
+  }];
+  for (NSNumber *num in order) {
+    NSInteger i = num.integerValue;
+    NSDictionary *entry = entries[(NSUInteger)i];
+    if (![entry isKindOfClass:[NSDictionary class]]) continue;
+    NSString *strokeId = entry[@"id"];
+    if (![strokeId isKindOfClass:[NSString class]] || strokeId.length == 0) continue;
+    if ([self.strokeOrder indexOfObject:strokeId] != NSNotFound) continue;
+    NSInteger at = ZIClampHistoryIndex([indices[(NSUInteger)i] integerValue], (NSInteger)self.strokeOrder.count);
+    [self.strokeOrder insertObject:strokeId atIndex:(NSUInteger)at];
+    self.strokesDict[strokeId] = entry;
+  }
+}
+
+/** 把一批笔迹从画布移除（批量删除的重做、批量复制的撤销）。 */
+- (void)removeBatchEntries:(NSDictionary *)action
+{
+  NSArray *entries = action[@"entries"];
+  if (![entries isKindOfClass:[NSArray class]]) return;
+  for (NSDictionary *entry in entries) {
+    if (![entry isKindOfClass:[NSDictionary class]]) continue;
+    NSString *strokeId = entry[@"id"];
+    if (![strokeId isKindOfClass:[NSString class]] || strokeId.length == 0) continue;
+    [self.strokesDict removeObjectForKey:strokeId];
+    [self.strokeOrder removeObject:strokeId];
+  }
 }
 
 /** 统一入栈：动作加入 undoStack，并清空 redoStack（任何新用户操作都让重做失效）。 */
@@ -990,15 +1065,25 @@ static NSInteger ZIClampHistoryIndex(NSInteger index, NSInteger count) {
   if (ids.count == 0) {
     return;
   }
+  // 先取各条的原下标与内容（此刻画布完整），再统一移除，
+  // 整批记成**一条**复合动作：用户点一次「删除」、点一次「撤销」应当整批回来。
+  // 逐条记 remove 会让一次 undo 只还原一条，必须连点 N 次才回到删除前。
+  NSMutableArray *entries = [NSMutableArray array];
+  NSMutableArray *indices = [NSMutableArray array];
   for (NSString *strokeId in ids) {
-    // 移除前记录 remove 动作（entry + 原下标），撤销才能插回原位。
     NSDictionary *entry = self.strokesDict[strokeId];
     NSUInteger idx = [self.strokeOrder indexOfObject:strokeId];
     if (entry && idx != NSNotFound) {
-      [self pushHistoryAction:@{ @"type": @"remove", @"entry": entry, @"index": @((NSInteger)idx) }];
+      [entries addObject:entry];
+      [indices addObject:@((NSInteger)idx)];
     }
+  }
+  for (NSString *strokeId in ids) {
     [self.strokesDict removeObjectForKey:strokeId];
     [self.strokeOrder removeObject:strokeId];
+  }
+  if (entries.count > 0) {
+    [self pushHistoryAction:@{ @"type": @"remove_batch", @"entries": entries, @"indices": indices }];
   }
   [self.selectedStrokes removeAllObjects];
   [self redrawStrokesOnOverlay];
@@ -1029,9 +1114,17 @@ static NSInteger ZIClampHistoryIndex(NSInteger index, NSInteger count) {
   }
   // 副本排在最后（保持一致的重绘顺序：后画者在上）
   [self.strokeOrder addObjectsFromArray:newIds];
-  // 每个副本记一条 add 动作（加入后再记，index 由 pushHistoryAction 按当前顺序补记）。
+  // 与删除对称：整批复制记成一条复合动作，一次撤销整批移除副本。
+  NSMutableArray *copyEntries = [NSMutableArray array];
+  NSMutableArray *copyIndices = [NSMutableArray array];
   for (NSString *newId in newIds) {
-    [self pushHistoryAction:@{ @"type": @"add", @"id": newId }];
+    NSDictionary *entry = self.strokesDict[newId];
+    if (!entry) continue;
+    [copyEntries addObject:entry];
+    [copyIndices addObject:@([self.strokeOrder indexOfObject:newId])];
+  }
+  if (copyEntries.count > 0) {
+    [self pushHistoryAction:@{ @"type": @"add_batch", @"entries": copyEntries, @"indices": copyIndices }];
   }
   [self redrawStrokesOnOverlay];
   [self.metalView setNeedsDisplay];
@@ -1172,6 +1265,7 @@ typedef struct {
 static void ZeroIsleLassoConvert(void *info, const CGPathElement *element)
 {
   ZeroIsleLassoConvertContext *ctx = (ZeroIsleLassoConvertContext *)info;
+  if (!ctx) return;
   NativeInfiniteCanvasView *view = ctx->view;
   UIBezierPath *out = ctx->output;
   if (!view || !out) return;
@@ -1184,12 +1278,17 @@ static void ZeroIsleLassoConvert(void *info, const CGPathElement *element)
     case kCGPathElementAddLineToPoint:
       [out addLineToPoint:[view worldToScreen:points[0]]];
       break;
+    case kCGPathElementAddQuadCurveToPoint:
+      [out addQuadCurveToPoint:[view worldToScreen:points[1]]
+                  controlPoint:[view worldToScreen:points[0]]];
+      break;
+    case kCGPathElementAddCurveToPoint:
+      [out addCurveToPoint:[view worldToScreen:points[2]]
+              controlPoint1:[view worldToScreen:points[0]]
+              controlPoint2:[view worldToScreen:points[1]]];
+      break;
     case kCGPathElementCloseSubpath:
       [out closePath];
-      break;
-    default:
-      // 套索只由直线段构成，其它元素按直线处理即可。
-      [out addLineToPoint:[view worldToScreen:points[0]]];
       break;
   }
 }
@@ -1221,7 +1320,13 @@ static void ZeroIsleLassoConvert(void *info, const CGPathElement *element)
     return;
   }
   UIBezierPath *screenPath = [UIBezierPath bezierPath];
-  CGPathApply(self.lassoPath.CGPath, (__bridge void *)screenPath, ZeroIsleLassoConvert);
+  // 必须传上下文结构体的地址：回调是 C 函数指针，收的是 `void *info`，
+  // 里面按 ZeroIsleLassoConvertContext* 解释（首字段是视图指针）。
+  // 之前这里传的是 (__bridge void *)screenPath —— 回调把 UIBezierPath 对象
+  // 当成 ctx 用，读出的 view/output 全是垃圾指针，一进套索就 SIGSEGV
+  // （崩溃报告 far=0x1f3ae20，pc 在 libobjc objc_msgSend）。
+  ZeroIsleLassoConvertContext ctx = { self, screenPath };
+  CGPathApply(self.lassoPath.CGPath, &ctx, ZeroIsleLassoConvert);
   self.lassoLayer.path = screenPath.CGPath;
 }
 
@@ -1718,6 +1823,14 @@ static void ZeroIsleLassoConvert(void *info, const CGPathElement *element)
       }
       changed = YES;
     }
+  } else if ([type isEqualToString:@"remove_batch"]) {
+    // 撤销「批量删除」：整批按原下标插回，一次撤销回到删除前。
+    [self restoreBatchEntries:action];
+    changed = YES;
+  } else if ([type isEqualToString:@"add_batch"]) {
+    // 撤销「批量复制」：整批移除副本。
+    [self removeBatchEntries:action];
+    changed = YES;
   }
 
   [self.redoStack addObject:redoAction];
@@ -1762,6 +1875,14 @@ static void ZeroIsleLassoConvert(void *info, const CGPathElement *element)
   } else if ([type isEqualToString:@"clear"]) {
     [self.strokesDict removeAllObjects];
     [self.strokeOrder removeAllObjects];
+    changed = YES;
+  } else if ([type isEqualToString:@"remove_batch"]) {
+    // 重做「批量删除」：整批再次移除。
+    [self removeBatchEntries:action];
+    changed = YES;
+  } else if ([type isEqualToString:@"add_batch"]) {
+    // 重做「批量复制」：整批按原下标插回。
+    [self restoreBatchEntries:action];
     changed = YES;
   }
 
@@ -2435,6 +2556,14 @@ static void ZeroIsleLassoConvert(void *info, const CGPathElement *element)
   CGFloat scale = MAX(0.1, self.viewportScale);
   CGFloat cx = CGRectGetMidX(self.bounds);
   CGFloat cy = CGRectGetMidY(self.bounds);
+
+  // 视图尚未完成布局时（RN 会先下发 viewport 属性、再走 layout）bounds 为 {0,0}，
+  // 此时 UIGraphicsBeginImageContextWithOptions 会抛
+  // "failed to allocate CGBitampContext: size={0, 0}" 并让 JS 侧弹红屏。
+  // 这不是可恢复的绘制错误，而是「时机未到」：直接返回，layoutSubviews 会再调一次。
+  if (!(self.bounds.size.width >= 1.0) || !(self.bounds.size.height >= 1.0)) {
+    return;
+  }
 
   UIGraphicsBeginImageContextWithOptions(self.bounds.size, NO, [UIScreen mainScreen].scale);
   CGContextRef context = UIGraphicsGetCurrentContext();
