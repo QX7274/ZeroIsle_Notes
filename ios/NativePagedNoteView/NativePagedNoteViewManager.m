@@ -44,6 +44,21 @@ RCT_CUSTOM_VIEW_PROPERTY(currentStrokeWidth, NSNumber, NativePagedNoteView)
   [view setCurrentStrokeWidth:[RCTConvert CGFloat:json]];
 }
 
+// 事件回调导出（P0：此前一条都没有，RN 不把 onXxx 传给原生 view，block 恒为 nil；
+// 分页笔记因此收不到 onReady，isLoading 永远为 true，数据导入也不执行）。
+// RN 只在扫描到 propConfig_onXxx 时才把该属性认作事件属性，
+// 见 node_modules/react-native/React/Views/RCTComponentData.m:446-527。
+RCT_EXPORT_VIEW_PROPERTY(onStrokeCommitted, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onPageChange, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onPageAdded, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onMetrics, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onExportComplete, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onReady, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onHandwritingRecognized, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onZoomChange, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onHistoryStateChange, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onStrokesSelected, RCTDirectEventBlock)
+
 // Methods
 RCT_EXPORT_METHOD(setPage:(nonnull NSNumber *)reactTag page:(NSInteger)page)
 {

@@ -55,10 +55,11 @@ describe('Android 分页：撤销必须处理删除/清空动作', () => {
     }
   });
 
-  it('deleteSelectedStrokes 记录带原下标的 REMOVE_STROKE 动作', () => {
+  it('deleteSelectedStrokes 记录带原下标的 REMOVE_BATCH 复合动作', () => {
     const body = sliceFrom(src, 'public void deleteSelectedStrokes(');
-    expect(body).toContain('HistoryAction.Type.REMOVE_STROKE');
+    expect(body).toContain('HistoryAction.Type.REMOVE_BATCH');
     expect(body).toContain('indexOf(s)');
+    expect(body).not.toContain('HistoryAction.Type.REMOVE_STROKE');
   });
 
   it('clear() 在清空前记录 CLEAR 动作', () => {
@@ -70,6 +71,32 @@ describe('Android 分页：撤销必须处理删除/清空动作', () => {
   it('canUndo 看动作栈，而不是「列表非空」', () => {
     const body = sliceFrom(src, 'private void sendHistoryStateChangeEvent()');
     expect(body).toContain('canUndo = pageData.undoStack != null && !pageData.undoStack.isEmpty()');
+  });
+
+  it('批量删除/复制各记成一条复合动作，一次 undo 整批进出', () => {
+    const del = sliceFrom(src, 'public void deleteSelectedStrokes(');
+    const dup = sliceFrom(src, 'public void duplicateSelectedStrokes(');
+    expect(del).toContain('HistoryAction.Type.REMOVE_BATCH, new ArrayList<>(removed), removedAt');
+    expect(dup).toContain('HistoryAction.Type.ADD_BATCH, new ArrayList<>(copies), copyIndices');
+    // 关键：删除时不得在循环里逐条入栈（那会让一次 undo 只还原一条）——
+    // 在「删除方法」与「复制方法」之间只允许出现一次入栈调用。
+    const delOnly = src.slice(src.indexOf('public void deleteSelectedStrokes('),
+                             src.indexOf('public void duplicateSelectedStrokes('));
+    const pushes = delOnly.split('pushHistoryAction(pageData, new HistoryAction(').length - 1;
+    expect(pushes).toBe(1);
+    // 循环体内不得入栈：取 for 头到其后第一个 '}' 之间。
+    const loopAt = delOnly.indexOf('for (StrokeData s : removed)');
+    expect(loopAt).toBeGreaterThan(-1);
+    const loopEnd = delOnly.indexOf('}', loopAt);
+    expect(delOnly.slice(loopAt, loopEnd)).not.toContain('pushHistoryAction');
+    const undo = sliceFrom(src, 'private void applyUndo(');
+    const redo = sliceFrom(src, 'private void applyRedo(');
+    expect(undo).toContain('case REMOVE_BATCH:');
+    expect(undo).toContain('case ADD_BATCH:');
+    expect(redo).toContain('case REMOVE_BATCH:');
+    expect(redo).toContain('case ADD_BATCH:');
+    expect(src).toContain('private void restoreBatch(PageData pageData, HistoryAction action)');
+    expect(src).toContain('private void removeBatch(PageData pageData, HistoryAction action)');
   });
 
   it('新动作入栈会清空 redoStack（重做失效语义）', () => {
@@ -93,6 +120,17 @@ describe('Android 无限画布：撤销必须处理删除/清空动作', () => {
 
   it('canUndo 看 undoStack', () => {
     expect(src).toContain('canUndo", !undoStack.isEmpty()');
+  });
+
+  it('批量删除/复制各记成一条复合动作', () => {
+    const del = sliceFrom(src, 'public void deleteSelectedStrokes(');
+    const dup = sliceFrom(src, 'public void duplicateSelectedStrokes(');
+    expect(del).toContain('HistoryAction.Type.REMOVE_BATCH, new ArrayList<>(removed), removedAt');
+    expect(dup).toContain('HistoryAction.Type.ADD_BATCH, new ArrayList<>(copies), copyIndices');
+    expect(src).toContain('case REMOVE_BATCH:');
+    expect(src).toContain('case ADD_BATCH:');
+    expect(src).toContain('private void restoreBatch(HistoryAction action)');
+    expect(src).toContain('private void removeBatch(HistoryAction action)');
   });
 });
 
@@ -129,6 +167,23 @@ describe('iOS 无限画布：撤销必须处理删除/清空动作', () => {
     const body = sliceFrom(src, '- (void)emitHistoryStateChange');
     expect(body).toContain('undoStack.count > 0');
   });
+
+  it('批量删除/复制各记成一条复合动作，undo/redo 覆盖 remove_batch/add_batch', () => {
+    const del = sliceFrom(src, '- (void)deleteSelectedStrokes:');
+    expect(del).toContain('@"remove_batch"');
+    expect(del).not.toContain('@"type": @"remove"');
+    const dup = sliceFrom(src, '- (void)duplicateSelectedStrokes:');
+    expect(dup).toContain('@"add_batch"');
+    expect(dup).not.toContain('@"type": @"add"');
+    const undo = sliceFrom(src, '- (void)undo {');
+    const redo = sliceFrom(src, '- (void)redo {');
+    for (const body of [undo, redo]) {
+      expect(body).toContain('@"remove_batch"');
+      expect(body).toContain('@"add_batch"');
+    }
+    expect(src).toContain('- (void)restoreBatchEntries:(NSDictionary *)action');
+    expect(src).toContain('- (void)removeBatchEntries:(NSDictionary *)action');
+  });
 });
 
 describe('iOS 分页：历史按页持有，删除可撤销', () => {
@@ -151,5 +206,22 @@ describe('iOS 分页：历史按页持有，删除可撤销', () => {
     const undo = sliceFrom(src, '- (void)undo {');
     expect(undo).toContain('@"remove"');
     expect(undo).toContain('@"clear"');
+  });
+
+  it('批量删除/复制各记成一条复合动作（本页历史）', () => {
+    const del = sliceFrom(src, '- (void)deleteSelectedStrokes:');
+    expect(del).toContain('@"remove_batch"');
+    expect(del).not.toContain('@"type": @"remove"');
+    const dup = sliceFrom(src, '- (void)duplicateSelectedStrokes:');
+    expect(dup).toContain('@"add_batch"');
+    expect(dup).not.toContain('@"type": @"add"');
+    const undo = sliceFrom(src, '- (void)undo {');
+    const redo = sliceFrom(src, '- (void)redo {');
+    expect(undo).toContain('@"remove_batch"');
+    expect(undo).toContain('@"add_batch"');
+    expect(redo).toContain('@"remove_batch"');
+    expect(redo).toContain('@"add_batch"');
+    expect(src).toContain('- (void)restoreBatchEntries:(NSDictionary *)action strokes:(NSMutableArray *)strokes');
+    expect(src).toContain('- (void)removeBatchEntries:(NSDictionary *)action strokes:(NSMutableArray *)strokes');
   });
 });

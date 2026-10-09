@@ -1348,6 +1348,42 @@ static const CGFloat kUnifiedMaxScale = 4.0;
  *  - canUndo 只看「本页有笔迹」，于是删除后按钮依然亮着、点了没反应。
  * 现在三类动作（add / remove / clear）都记进本页 history，撤销按动作语义执行。
  */
+/**
+ * 把一批笔迹按各自的原下标插回本页。
+ * 「批量删除」的撤销与「批量复制」的重做都走这里；按原下标升序插入即可还原层次。
+ */
+- (void)restoreBatchEntries:(NSDictionary *)action strokes:(NSMutableArray *)strokes
+{
+  NSArray *entries = action[@"entries"];
+  NSArray *indices = action[@"indices"];
+  if (![entries isKindOfClass:[NSArray class]] || ![indices isKindOfClass:[NSArray class]]) {
+    return;
+  }
+  NSInteger n = MIN((NSInteger)entries.count, (NSInteger)indices.count);
+  NSMutableArray<NSNumber *> *order = [NSMutableArray array];
+  for (NSInteger i = 0; i < n; i++) [order addObject:@(i)];
+  [order sortUsingComparator:^NSComparisonResult(NSNumber *a, NSNumber *b) {
+    return [indices[a.integerValue] compare:indices[b.integerValue]];
+  }];
+  for (NSNumber *num in order) {
+    NSInteger i = num.integerValue;
+    NSDictionary *entry = entries[(NSUInteger)i];
+    if (![entry isKindOfClass:[NSDictionary class]]) continue;
+    NSInteger at = ZIPagedClampIndex([indices[(NSUInteger)i] integerValue], (NSInteger)strokes.count);
+    [strokes insertObject:entry atIndex:(NSUInteger)at];
+  }
+}
+
+/** 把一批笔迹从本页移除（批量删除的重做、批量复制的撤销）。 */
+- (void)removeBatchEntries:(NSDictionary *)action strokes:(NSMutableArray *)strokes
+{
+  NSArray *entries = action[@"entries"];
+  if (![entries isKindOfClass:[NSArray class]]) return;
+  for (NSDictionary *entry in entries) {
+    if ([entry isKindOfClass:[NSDictionary class]]) [strokes removeObject:entry];
+  }
+}
+
 - (void)undo {
   NSMutableArray *history = [self undoStackForPage:self.currentPage];
   if (history.count == 0) {
@@ -1393,6 +1429,14 @@ static const CGFloat kUnifiedMaxScale = 4.0;
       }
     }
     redoAction = action;
+  } else if ([type isEqualToString:@"remove_batch"]) {
+    // 撤销「批量删除」：整批按原下标插回，一次撤销回到删除前。
+    [self restoreBatchEntries:action strokes:strokes];
+    redoAction = action;
+  } else if ([type isEqualToString:@"add_batch"]) {
+    // 撤销「批量复制」：整批移除副本。
+    [self removeBatchEntries:action strokes:strokes];
+    redoAction = action;
   }
 
   NSMutableArray *redo = [self redoHistoryForPage:self.currentPage];
@@ -1418,11 +1462,19 @@ static const CGFloat kUnifiedMaxScale = 4.0;
   NSString *type = action[@"type"];
 
   if ([type isEqualToString:@"add"]) {
+    // 「add」的逆动作（undo）把 entry 存进了 redo 副本，redo 时按原下标插回；
+    // 若 entry 缺失则退回按下标插入 id 对应的内容（兼容旧动作）。
     NSDictionary *entry = action[@"entry"];
     if ([entry isKindOfClass:[NSDictionary class]]) {
       NSInteger idx = ZIPagedClampIndex([action[@"index"] integerValue], (NSInteger)strokes.count);
       [strokes insertObject:entry atIndex:(NSUInteger)idx];
     }
+  } else if ([type isEqualToString:@"remove_batch"]) {
+    // 重做「批量删除」：整批再次移除。
+    [self removeBatchEntries:action strokes:strokes];
+  } else if ([type isEqualToString:@"add_batch"]) {
+    // 重做「批量复制」：整批按原下标插回。
+    [self restoreBatchEntries:action strokes:strokes];
   } else if ([type isEqualToString:@"remove"]) {
     NSString *strokeId = action[@"id"];
     if ([strokeId isKindOfClass:[NSString class]] && strokeId.length > 0) {
@@ -2857,14 +2909,23 @@ static void ZeroIsleConvertPagePathToScreen(void *info, const CGPathElement *ele
   }
 
   NSArray<NSNumber *> *indices = [self indicesOfStrokesWithIds:ids inPageStrokes:strokes];
-  // 从后往前删（indices 已降序），每条都带上删除前的原下标记进历史 ——
-  // 这是此前最大的缺陷：删除后撤销无效，撤掉的反而是列表末尾的无辜笔迹。
+  // 从后往前删（indices 已降序）避免下标漂移，同时收齐各条的 entry 与原下标。
+  // 整批记成**一条**复合动作：用户点一次「删除」、点一次「撤销」应当整批回来；
+  // 逐条记 remove 会让一次 undo 只还原一条，必须连点 N 次才回到删除前。
+  NSMutableArray *removedEntries = [NSMutableArray array];
+  NSMutableArray *removedIndices = [NSMutableArray array];
   for (NSNumber *index in indices) {
     NSInteger at = [index integerValue];
     if (at < 0 || at >= (NSInteger)strokes.count) continue;
     NSDictionary *removed = strokes[(NSUInteger)at];
     [strokes removeObjectAtIndex:(NSUInteger)at];
-    [self pushHistoryAction:@{ @"type": @"remove", @"entry": removed ?: @{}, @"index": @(at) }
+    [removedEntries addObject:removed ?: @{}];
+    [removedIndices addObject:@(at)];
+  }
+  if (removedEntries.count > 0) {
+    [self pushHistoryAction:@{ @"type": @"remove_batch",
+                               @"entries": removedEntries,
+                               @"indices": removedIndices }
                      onPage:self.currentPage];
   }
   [self clearSelectionState];
@@ -2900,13 +2961,16 @@ static void ZeroIsleConvertPagePathToScreen(void *info, const CGPathElement *ele
   }
 
   [strokes addObjectsFromArray:copies];
-  // 每条副本各记一条 add 动作（下标即加入后的位置）。
+  // 与删除对称：整批复制记成一条复合动作，一次撤销整批移除副本。
+  NSMutableArray *copyIndices = [NSMutableArray array];
   for (NSInteger i = (NSInteger)strokes.count - (NSInteger)copies.count; i < (NSInteger)strokes.count; i++) {
-    NSDictionary *entry = strokes[(NSUInteger)i];
-    NSString *copyId = entry[@"id"];
-    if ([copyId isKindOfClass:[NSString class]]) {
-      [self pushHistoryAction:@{ @"type": @"add", @"id": copyId, @"index": @(i) } onPage:self.currentPage];
-    }
+    [copyIndices addObject:@(i)];
+  }
+  if (copies.count > 0) {
+    [self pushHistoryAction:@{ @"type": @"add_batch",
+                               @"entries": [copies copy],
+                               @"indices": copyIndices }
+                     onPage:self.currentPage];
   }
   [self rebuildStrokeLayers];
   [self.metalView setNeedsDisplay];
@@ -3098,6 +3162,12 @@ static void ZeroIsleConvertPagePathToScreen(void *info, const CGPathElement *ele
   CGFloat padding = 20.0;
   CGRect imageRect = CGRectInset(strokesBoundingBox, -padding, -padding);
 
+  // 空包围盒时 imageRect 为 0 尺寸，建上下文会抛异常，直接返回空结果。
+  if (!(imageRect.size.width >= 1.0) || !(imageRect.size.height >= 1.0)) {
+    if (completion) completion(@"", nil);
+    return;
+  }
+
   UIGraphicsBeginImageContextWithOptions(imageRect.size, NO, [UIScreen mainScreen].scale);
   CGContextRef context = UIGraphicsGetCurrentContext();
 
@@ -3175,6 +3245,12 @@ static void ZeroIsleConvertPagePathToScreen(void *info, const CGPathElement *ele
 @implementation NativePagedNoteView (TextRecognition)
 
 - (void)recognizeTextInRect:(CGRect)rect completion:(void (^)(NSString *text, NSError *error))completion {
+  // bounds 为 {0,0} 时建位图上下文会抛异常（"failed to allocate CGBitampContext"），
+  // 视图尚未布局就触发 OCR 时整条 JS UI block 会崩红屏，必须先挡掉。
+  if (!(self.bounds.size.width >= 1.0) || !(self.bounds.size.height >= 1.0)) {
+    if (completion) completion(nil, [NSError errorWithDomain:@"PagedNoteOCRError" code:3 userInfo:@{NSLocalizedDescriptionKey: @"视图尺寸无效，无法识别"}]);
+    return;
+  }
   // 1. Render the view to an image
   UIGraphicsBeginImageContextWithOptions(self.bounds.size, NO, self.window.screen.scale);
   [self.layer renderInContext:UIGraphicsGetCurrentContext()];

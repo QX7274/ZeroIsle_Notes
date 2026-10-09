@@ -1599,6 +1599,14 @@ public class NativeInfiniteCanvasView extends View {
                     // 撤销清除：恢复所有笔迹
                     strokes.addAll(action.clearedStrokes);
                     break;
+                case REMOVE_BATCH:
+                    // 撤销「批量删除」：整批按原下标插回，一次撤销回到删除前。
+                    restoreBatch(action);
+                    break;
+                case ADD_BATCH:
+                    // 撤销「批量复制」：整批移除副本。
+                    removeBatch(action);
+                    break;
             }
 
             // 添加到重做栈
@@ -1635,6 +1643,14 @@ public class NativeInfiniteCanvasView extends View {
                 case CLEAR:
                     // 重做清除
                     strokes.clear();
+                    break;
+                case REMOVE_BATCH:
+                    // 重做「批量删除」：整批再次移除。
+                    removeBatch(action);
+                    break;
+                case ADD_BATCH:
+                    // 重做「批量复制」：整批按原下标插回。
+                    restoreBatch(action);
                     break;
             }
 
@@ -1678,12 +1694,18 @@ public class NativeInfiniteCanvasView extends View {
         }
         if (removed.isEmpty()) return;
 
+        // 先取各自的原下标（此刻 strokes 还是完整的），再统一移除。
+        List<Integer> removedAt = new ArrayList<>();
         for (StrokeData s : removed) {
-            // 先取下标再移除，否则恢复时会插到末尾、层次错乱
-            int at = strokes.indexOf(s);
-            strokes.remove(s);
-            addToUndoStack(new HistoryAction(HistoryAction.Type.REMOVE_STROKE, s, at));
+            removedAt.add(strokes.indexOf(s));
         }
+        for (StrokeData s : removed) {
+            strokes.remove(s);
+        }
+        // 整批记成**一条**复合动作：用户点一次「删除」、点一次「撤销」应当整批回来。
+        // 逐条记动作会导致一次 undo 只还原一条，必须连点 N 次，与直觉不符。
+        addToUndoStack(new HistoryAction(
+            HistoryAction.Type.REMOVE_BATCH, new ArrayList<>(removed), removedAt));
         clearSelection();
         invalidate();
         sendHistoryStateChangeEvent();
@@ -1718,11 +1740,15 @@ public class NativeInfiniteCanvasView extends View {
         if (copies.isEmpty()) return;
 
         List<String> newIds = new ArrayList<>();
+        List<Integer> copyIndices = new ArrayList<>();
         for (StrokeData c : copies) {
             strokes.add(c);
+            copyIndices.add(strokes.size() - 1);
             newIds.add(c.id);
-            addToUndoStack(new HistoryAction(HistoryAction.Type.ADD_STROKE, c));
         }
+        // 同删除：整批复制成一条复合动作，一次撤销整批移除副本。
+        addToUndoStack(new HistoryAction(
+            HistoryAction.Type.ADD_BATCH, new ArrayList<>(copies), copyIndices));
         invalidate();
         sendHistoryStateChangeEvent();
 
@@ -1833,6 +1859,35 @@ public class NativeInfiniteCanvasView extends View {
         // 限制历史栈大小
         if (undoStack.size() > MAX_HISTORY_SIZE) {
             undoStack.remove(0);
+        }
+    }
+
+    /**
+     * 把一批笔迹按各自的原下标插回 strokes（升序插入即可还原原层次）。
+     * 批量删除撤销、批量复制重做都走这里。
+     */
+    private void restoreBatch(HistoryAction action) {
+        if (action.batchStrokes == null || action.batchIndices == null) return;
+        int n = Math.min(action.batchStrokes.size(), action.batchIndices.size());
+        // 按原下标升序插回：先插小的，后面大的下标仍然指向正确位置。
+        Integer[] order = new Integer[n];
+        for (int i = 0; i < n; i++) order[i] = i;
+        java.util.Arrays.sort(order, (a, b) -> action.batchIndices.get(a) - action.batchIndices.get(b));
+        for (int k = 0; k < n; k++) {
+            int i = order[k];
+            StrokeData s = action.batchStrokes.get(i);
+            if (s == null || strokes.contains(s)) continue;
+            int at = action.batchIndices.get(i);
+            if (at < 0 || at > strokes.size()) at = strokes.size();
+            strokes.add(at, s);
+        }
+    }
+
+    /** 把一批笔迹从 strokes 里移除（批量删除重做、批量复制撤销）。 */
+    private void removeBatch(HistoryAction action) {
+        if (action.batchStrokes == null) return;
+        for (StrokeData s : action.batchStrokes) {
+            if (s != null) strokes.remove(s);
         }
     }
 
@@ -2171,7 +2226,15 @@ public class NativeInfiniteCanvasView extends View {
         enum Type {
             ADD_STROKE,
             REMOVE_STROKE,
-            CLEAR
+            CLEAR,
+            /**
+             * 一次删除多条的复合动作。
+             * 逐条记 REMOVE_STROKE 会让「点一次删除、点一次撤销」只还原一条，
+             * 用户必须连点 N 次才回到删除前 —— 与直觉不符，故整批记成一条。
+             */
+            REMOVE_BATCH,
+            /** 一次复制多条的复合动作（撤销整批移除、重做整批插回）。 */
+            ADD_BATCH
         }
 
         Type type;
@@ -2185,6 +2248,17 @@ public class NativeInfiniteCanvasView extends View {
          */
         int index = -1;
         List<StrokeData> clearedStrokes;
+
+        /** 复合动作涉及的笔迹（与 batchIndices 一一对应）。 */
+        List<StrokeData> batchStrokes;
+        /** 每条笔迹被移除（或加入）那一刻在 strokes 里的下标；按下标倒序插回即可还原层次。 */
+        List<Integer> batchIndices;
+
+        HistoryAction(Type type, List<StrokeData> batchStrokes, List<Integer> batchIndices) {
+            this.type = type;
+            this.batchStrokes = batchStrokes;
+            this.batchIndices = batchIndices;
+        }
 
         HistoryAction(Type type, StrokeData strokeData) {
             this.type = type;
